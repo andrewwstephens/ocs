@@ -51,6 +51,7 @@ import scala.collection.JavaConversions;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * This class performs the calculations for Gmos used for imaging.
@@ -63,6 +64,7 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
     private final ObservationDetails _obsDetailParameters;
     private final ObservingConditions _obsConditionParameters;
     private final TelescopeDetails _telescope;
+    private static final Logger Log = Logger.getLogger( GmosRecipe.class.getName() );
 
     /**
      * Constructs a GmosRecipe given the parameters. Useful for testing.
@@ -208,6 +210,12 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
 
         // ==== SLIT
         } else {
+
+            Log.warning("ANDY WARNING");
+            Log.info("ANDY INFO");
+            Log.fine("ANDY FINE");
+            Log.finer("ANDY FINER");
+            Log.finest("ANDY FINEST");
 
             final Slit slit = Slit$.MODULE$.apply(_sdParameters, _obsDetailParameters, instrument, instrument.getSlitWidth(), IQcalc.getImageQuality());
             final SlitThroughput throughput = new SlitThroughput(_sdParameters, slit, IQcalc.getImageQuality());
