@@ -3,11 +3,12 @@ package edu.gemini.itc.operation;
 import edu.gemini.itc.base.DatFile;
 import edu.gemini.itc.base.ITCConstants;
 import edu.gemini.itc.shared.*;
-
 import java.util.Scanner;
+import java.util.logging.Logger;
 
 public final class SlitThroughput {
 
+    private static final Logger Log = Logger.getLogger( SlitThroughput.class.getName() );
     private static final double[] x_axis;
     private static final double[] y_axis;
     private static final double[][] _data;
@@ -48,7 +49,9 @@ public final class SlitThroughput {
 
 
     public SlitThroughput(final SourceDefinition src, final Slit slit, final double im_qual) {
+
         this.throughput             = calculateThroughput(src, slit, im_qual);
+        Log.fine(String.format("ITC - Slit Throughput = %.3f", this.throughput));
         this.onePixelThroughput     = calculateThroughput(src, new OnePixelSlit(slit.width(), slit.pixelSize()), im_qual);
     }
 

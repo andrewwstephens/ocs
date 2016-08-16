@@ -135,6 +135,8 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
     // TODO: bring mainInstrument and instrument together
     private SpectroscopyResult calculateSpectroscopy(final Gmos mainInstrument, final Gmos instrument, final int detectorCount) {
 
+        Log.fine("ITC - Calculating spectroscopy results...");
+
         final SpecS2NSlitVisitor[] specS2N;
 
         final SEDFactory.SourceResult src = SEDFactory.calculate(instrument, _sdParameters, _obsConditionParameters, _telescope);
@@ -169,6 +171,8 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
 
         // ==== IFU
         if (instrument.isIfuUsed()) {
+
+            Log.fine("ITC - Starting IFU calculations");
 
             final VisitableMorphology morph = _sdParameters.isUniform() ? new USBMorphology() : new GaussianMorphology(IQcalc.getImageQuality());
             morph.accept(instrument.getIFU().getAperture());
@@ -211,11 +215,7 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
         // ==== SLIT
         } else {
 
-            Log.warning("ANDY WARNING");
-            Log.info("ANDY INFO");
-            Log.fine("ANDY FINE");
-            Log.finer("ANDY FINER");
-            Log.finest("ANDY FINEST");
+            Log.fine("ITC - Starting Slit calculations");
 
             final Slit slit = Slit$.MODULE$.apply(_sdParameters, _obsDetailParameters, instrument, instrument.getSlitWidth(), IQcalc.getImageQuality());
             final SlitThroughput throughput = new SlitThroughput(_sdParameters, slit, IQcalc.getImageQuality());

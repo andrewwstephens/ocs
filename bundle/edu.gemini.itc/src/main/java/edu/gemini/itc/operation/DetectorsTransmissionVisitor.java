@@ -7,6 +7,7 @@ import edu.gemini.itc.shared.GmosParameters;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * For Gmos Spectroscopy the spectrum will be spread across 3 CCD's
@@ -15,6 +16,7 @@ import java.util.List;
  */
 public class DetectorsTransmissionVisitor implements SampledSpectrumVisitor {
 
+    private static final Logger Log = Logger.getLogger( DetectorsTransmissionVisitor.class.getName() );
     private final int spectralBinning;
     private final double centralWavelength;
     private final double nmppx;
@@ -23,6 +25,7 @@ public class DetectorsTransmissionVisitor implements SampledSpectrumVisitor {
     private List<Integer> detectorCcdIndexes;
 
     public DetectorsTransmissionVisitor(final GmosParameters p, final double nmppx, final String filename) {
+        Log.fine("ITC - Detector chip gaps from " + filename);
         this.spectralBinning    = p.spectralBinning();
         this.centralWavelength  = p.centralWavelength().toNanometers();
         this.nmppx              = nmppx;
@@ -32,9 +35,10 @@ public class DetectorsTransmissionVisitor implements SampledSpectrumVisitor {
     }
 
     /**
-     * This method performs the Detectors transmision manipulation on the SED.
+     * This method performs the Detectors transmission manipulation on the SED.
      */
     public void visit(SampledSpectrum sed) {
+        Log.fine("ITC - Applying detector transmission");
         for (int i = 0; i < sed.getLength(); i++) {
             sed.setY(i,
                     sed.getY(i * sed.getSampling() + sed.getStart()) *
@@ -49,6 +53,7 @@ public class DetectorsTransmissionVisitor implements SampledSpectrumVisitor {
         // TODO: The CCD gaps are not really expected to change very often... if we do that we also need to abstract out all
         // TODO: the other GMOS specific stuff from this class so that it works for any CCD array layout.
         // need to sample the file at regular interval pixel values
+        Log.fine("ITC - Applying detector chip gaps");
         int finalPixelValue = (int) data[0][data[0].length - 1];
         double[] pixelData = new double[finalPixelValue];
         pixelData[0] = 1.0; // XXX previously defaulted to 0
@@ -160,6 +165,8 @@ public class DetectorsTransmissionVisitor implements SampledSpectrumVisitor {
       * that adds the gaps to be more flexible.
       */
     public double[][] toPixelSpace(double[][] data, double shift) {
+        Log.fine("ITC - Converting from wavelength to pixels");
+        Log.fine(String.format("ITC - IFU-2 shift = %.3f", shift));
         double[][] array = new double[2][];
         array[0] = Arrays.copyOf(data[0], data[0].length);
         array[1] = Arrays.copyOf(data[1], data[1].length);
