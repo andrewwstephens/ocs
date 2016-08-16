@@ -11,7 +11,7 @@ import java.util.logging.Logger;
 
 /**
  * For Gmos Spectroscopy the spectrum will be spread across 3 CCD's
- * The Three CCD's are not continous.  The Gaps will be represented in
+ * The Three CCD's are not continuous.  The Gaps will be represented in
  * a file read in.
  */
 public class DetectorsTransmissionVisitor implements SampledSpectrumVisitor {

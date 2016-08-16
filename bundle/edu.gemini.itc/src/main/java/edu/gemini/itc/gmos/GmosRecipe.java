@@ -247,6 +247,8 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
 
     private ImagingResult calculateImagingDo(final Gmos instrument) {
 
+        Log.fine("ITC - Starting Imaging calculations");
+
         // Start of morphology section of ITC
 
         // Module 1a

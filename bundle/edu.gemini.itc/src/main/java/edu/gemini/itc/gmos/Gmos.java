@@ -108,6 +108,8 @@ public abstract class Gmos extends Instrument implements BinningProvider, Spectr
                 throw new Error("invalid ccd type");
         }
 
+        Log.fine(String.format("ITC - Detector = %s", _detector) );
+
         if (isIfuUsed() && getIfuMethod().isDefined()) {
             if (getIfuMethod().get() instanceof IfuSingle) {
                 _IFU = new IFUComponent(getPrefix(), ((IfuSingle) getIfuMethod().get()).offset());

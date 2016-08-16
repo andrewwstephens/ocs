@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * The Instrument class is the class that any instrument should extend.
@@ -20,7 +21,9 @@ import java.util.List;
  */
 public abstract class Instrument {
 
-    public enum Bands {
+   private static final Logger Log = Logger.getLogger( Instrument.class.getName() );
+
+   public enum Bands {
         VISIBLE("03-08"),
         NEAR_IR("1-5"),
         MID_IR("7-26");
@@ -78,6 +81,7 @@ public abstract class Instrument {
      * Method adds the instrument background flux to the specified spectrum.
      */
     public void addBackground(ArraySpectrum sky) {
+        Log.fine("ITC - Adding background...");
         for (int i = 0; i < sky.getLength(); i++) {
             sky.setY(i, background.getY(sky.getX(i)) + sky.getY(i));
         }
@@ -99,6 +103,7 @@ public abstract class Instrument {
      * @param f
      */
     protected void addFilter(Filter f) {
+        Log.fine(String.format("ITC - Adding filter: %s", f));
         if (filter.isDefined()) throw new IllegalStateException();
         filter = new Some<>(f);
         components.add(f);
@@ -111,6 +116,7 @@ public abstract class Instrument {
      * @param d
      */
     protected void addDisperser(final Disperser d) {
+        Log.fine(String.format("ITC - Adding disperser: %s", d));
         if (disperser.isDefined()) throw new IllegalStateException();
         disperser = new Some<>(d);
         // we know that all dispersers are transmission elements, it would be nice to reflect this in the object
