@@ -53,6 +53,7 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
+import java.util.logging.Logger;
 
 /**
  * This class performs the calculations for Gmos used for imaging.
@@ -65,6 +66,7 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
     private final ObservationDetails _obsDetailParameters;
     private final ObservingConditions _obsConditionParameters;
     private final TelescopeDetails _telescope;
+    private static final Logger Log = Logger.getLogger( GmosRecipe.class.getName() );
 
     /**
      * Constructs a GmosRecipe given the parameters. Useful for testing.
@@ -138,6 +140,9 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
 
         SpecS2NSlitVisitor specS2N;
         final SpecS2N[] specS2Narr;
+        Log.fine("ITC - Calculating spectroscopy results...");
+
+        final SpecS2NSlitVisitor[] specS2N;
 
         final int ccdIndex = instrument.getDetectorCcdIndex();
         final DetectorsTransmissionVisitor tv = mainInstrument.getDetectorTransmision();
@@ -177,6 +182,8 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
 
         // ==== IFU
         if (instrument.isIfuUsed()) {
+
+            Log.fine("ITC - Starting IFU calculations");
 
             final VisitableMorphology morph = _sdParameters.isUniform() ? new USBMorphology() : new GaussianMorphology(IQcalc.getImageQuality());
             morph.accept(instrument.getIFU().getAperture());
@@ -263,6 +270,8 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
 
             // ==== SLIT
         } else {
+
+            Log.fine("ITC - Starting Slit calculations");
 
             final Slit slit = Slit$.MODULE$.apply(_sdParameters, _obsDetailParameters, instrument, instrument.getSlitWidth(), IQcalc.getImageQuality());
             final SlitThroughput throughput = new SlitThroughput(_sdParameters, slit, IQcalc.getImageQuality());
@@ -405,6 +414,8 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
 
 
     private ImagingResult calculateImagingDo(final Gmos instrument) {
+
+        Log.fine("ITC - Starting Imaging calculations");
 
         // Start of morphology section of ITC
 
@@ -680,7 +691,7 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
 
         // For IFU-2 with Hamamatsu we don't show CCDs in different colors, hence need to disable extra legend items
         final boolean visibleLegend = (ccdName.equals("") || ccdName.equals(" BB(B)") || ccdName.equals(" BB"));
-        
+
         // The suffix is a hack to overcome the requirement for titles of series to be unique when depricating
         // extra legend items with IFU-2 with Hamamatsu
         String suffix = ccdName;
