@@ -6,6 +6,7 @@ import edu.gemini.itc.base.SampledSpectrum;
 import edu.gemini.itc.base.SampledSpectrumVisitor;
 import edu.gemini.itc.base.VisitableSampledSpectrum;
 import edu.gemini.itc.shared.*;
+import java.util.logging.Logger;
 
 /**
  * The SpecS2NSlitVisitor is used to calculate the s2n of spectroscopy observation using a slit.
@@ -155,6 +156,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
 
     /** Calculates single and final S2N. */
     private void calculateS2N() {
+        Log.fine("ITC - Calculating Signal / Noise...");
 
         // shot noise on dark current flux in aperture
         final double darkNoise = darkCurrent * slit.lengthPixels() * exposureTime;

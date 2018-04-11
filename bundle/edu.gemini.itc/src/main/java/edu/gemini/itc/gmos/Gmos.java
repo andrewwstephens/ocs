@@ -10,11 +10,14 @@ import scala.Option;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * Gmos specification class
  */
 public abstract class Gmos extends Instrument implements BinningProvider, SpectroscopyInstrument {
+
+    private static final Logger Log = Logger.getLogger( Gmos.class.getName() );
 
     //Plate scales for original and Hamamatsu CCD's (temporary)
     public static final double ORIG_PLATE_SCALE = 0.0727;
@@ -104,6 +107,8 @@ public abstract class Gmos extends Instrument implements BinningProvider, Spectr
                 throw new Error("invalid ccd type");
         }
 
+        Log.fine(String.format("ITC - Detector = %s", _detector) );
+
         if (isIfuUsed() && getIfuMethod().isDefined()) {
             if (getIfuMethod().get() instanceof IfuSingle) {
                 _IFU = new IFUComponent(getPrefix(), ((IfuSingle) getIfuMethod().get()).offset());
@@ -191,7 +196,7 @@ public abstract class Gmos extends Instrument implements BinningProvider, Spectr
 
     /**
      * Returns the effective observing wavelength.
-     * This is properly calculated as a flux-weighted averate of
+     * This is properly calculated as a flux-weighted average of
      * observed spectrum.  So this may be temporary.
      *
      * @return Effective wavelength in nm
