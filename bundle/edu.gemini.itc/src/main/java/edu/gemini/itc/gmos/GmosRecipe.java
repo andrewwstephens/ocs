@@ -142,8 +142,6 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
         final SpecS2N[] specS2Narr;
         Log.fine("ITC - Calculating spectroscopy results...");
 
-        final SpecS2NSlitVisitor[] specS2N;
-
         final int ccdIndex = instrument.getDetectorCcdIndex();
         final DetectorsTransmissionVisitor tv = mainInstrument.getDetectorTransmision();
         final int firstCcdIndex = tv.getDetectorCcdStartIndex(ccdIndex);
