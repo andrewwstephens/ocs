@@ -20,6 +20,7 @@ import edu.gemini.spModel.core.Site;
 import edu.gemini.spModel.core.UserDefinedSpectrum;
 import edu.gemini.spModel.core.Wavelength;
 import scala.Option;
+import java.util.logging.Logger;
 
 /**
  * This class encapsulates the process of creating a Spectral Energy
@@ -31,6 +32,7 @@ import scala.Option;
  * the scale is arbitrary.
  */
 public final class SEDFactory {
+    private static final Logger Log = Logger.getLogger( SEDFactory.class.getName() );
 
     /**
      * The resulting source intensity, sky intensity and, if applicable, the halo produced by the AO system.
@@ -109,6 +111,9 @@ public final class SEDFactory {
     }
 
     private static VisitableSampledSpectrum getSED(final SourceDefinition sdp, final Instrument instrument) {
+
+        Log.fine(String.format("Instrument Wavelength Coverage = %.1f - %.1f", instrument.getObservingStart(), instrument.getObservingEnd()));
+        Log.fine(String.format("Redshift = %.3f", sdp.redshift().z() ));
 
         final VisitableSampledSpectrum temp;
         if (sdp.distribution() instanceof BlackBody) {
