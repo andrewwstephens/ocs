@@ -34,6 +34,8 @@ import java.util.logging.Logger;
 public final class SEDFactory {
     private static final Logger Log = Logger.getLogger( SEDFactory.class.getName() );
 
+    private static final Logger Log = Logger.getLogger( SEDFactory.class.getName() );
+
     /**
      * The resulting source intensity, sky intensity and, if applicable, the halo produced by the AO system.
      * The source is redshifted; all values are in photons/s/nm.
@@ -106,7 +108,7 @@ public final class SEDFactory {
             return new DefaultSampledSpectrum(as, wavelengthInterval);
 
         } catch (final Exception e) {
-            throw new Error("Could not parse user SED " + userSED.name() + ": " + e.getMessage());
+            throw new IllegalArgumentException("Could not parse user SED " + userSED.name() + ": " + e.getMessage());
         }
     }
 
@@ -197,9 +199,14 @@ public final class SEDFactory {
 
         // TODO: which instruments need this check, why only some and others not? Do all near-ir instruments need it?
         // TODO: what about Nifs and Gnirs (other near-ir instruments)?
+
         if (instrument instanceof Gsaoi || instrument instanceof Niri || instrument instanceof Flamingos2) {
+            Log.fine(String.format("Input SED:  %.1f - %.1f nm", sed.getStart(), sed.getEnd()));
+            Log.fine(String.format("Instrument: %.1f - %.1f nm", instrument.getObservingStart(), instrument.getObservingEnd()));
+
             if (sed.getStart() > instrument.getObservingStart() || sed.getEnd() < instrument.getObservingEnd()) {
-                throw new IllegalArgumentException("Shifted spectrum lies outside of observed wavelengths");
+                throw new IllegalArgumentException(String.format("Input SED (%.1f - %.1f nm) does not cover range of instrument configuration (%.1f - %.1f nm).",
+                        sed.getStart(), sed.getEnd(), instrument.getObservingStart(), instrument.getObservingEnd()));
             }
         }
 
