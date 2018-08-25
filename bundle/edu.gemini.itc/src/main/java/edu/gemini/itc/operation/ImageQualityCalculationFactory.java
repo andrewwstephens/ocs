@@ -4,6 +4,7 @@ import edu.gemini.itc.base.Instrument;
 import edu.gemini.itc.shared.ObservingConditions;
 import edu.gemini.itc.shared.SourceDefinition;
 import edu.gemini.itc.shared.TelescopeDetails;
+import edu.gemini.spModel.gemini.obscomp.SPSiteQuality;
 import edu.gemini.spModel.guide.GuideProbe;
 import edu.gemini.spModel.core.GaussianSource;
 
@@ -18,7 +19,13 @@ public final class ImageQualityCalculationFactory {
             TelescopeDetails telescope,
             Instrument instrument) {
 
-        if (sourceDefinition.profile() instanceof GaussianSource) {
+        if (observingConditions.iq() == SPSiteQuality.ImageQuality.EXACT) {
+            final double fwhm = observingConditions.exactiq();
+            if (fwhm <= 0.0) throw new IllegalArgumentException("Exact Image Quality must be larger than zero.");
+            System.out.println("Using EXACT Image Quality FWHM = " + fwhm);
+            return new GaussianImageQualityCalculation(fwhm);
+
+        } else if (sourceDefinition.profile() instanceof GaussianSource) {
             // Case A The Image quality is defined by the user
             // who has selected a Gaussian Extended source
             // Creates a GaussianImageQualityCalculation
@@ -39,7 +46,5 @@ public final class ImageQualityCalculationFactory {
                     observingConditions.airmass(),
                     instrument.getEffectiveWavelength());
         }
-
     }
 }
-
