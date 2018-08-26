@@ -26,7 +26,7 @@ public final class CloudTransmissionVisitor {
 
             if (exactcc < 0.0) throw new IllegalArgumentException("Exact Cloud Cover must be >= zero magnitudes.");
             final double[][] data = new double[2][2];
-            data[0][0] = 100.0;                      // x = wavelength
+            data[0][0] = 300.0;                      // x = wavelength
             data[0][1] = 30000.0;
             data[1][0] = Math.pow(10, exactcc/-2.5); // y = transmission
             data[1][1] = data[1][0];
