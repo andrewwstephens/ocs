@@ -21,8 +21,7 @@ public final class ImageQualityCalculationFactory {
 
         if (observingConditions.iq() == SPSiteQuality.ImageQuality.EXACT) {
             final double fwhm = observingConditions.exactiq();
-            if (fwhm <= 0.0) throw new IllegalArgumentException("Exact Image Quality must be larger than zero.");
-            System.out.println("Using EXACT Image Quality FWHM = " + fwhm);
+            if (fwhm <= 0.0) throw new IllegalArgumentException("Exact Image Quality must be > zero arcseconds.");
             return new GaussianImageQualityCalculation(fwhm);
 
         } else if (sourceDefinition.profile() instanceof GaussianSource) {

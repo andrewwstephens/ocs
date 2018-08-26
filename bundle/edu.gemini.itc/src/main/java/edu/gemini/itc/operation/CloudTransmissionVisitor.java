@@ -4,6 +4,7 @@ import edu.gemini.itc.base.DefaultArraySpectrum;
 import edu.gemini.itc.base.ITCConstants;
 import edu.gemini.itc.base.TransmissionElement;
 import edu.gemini.spModel.gemini.obscomp.SPSiteQuality;
+import java.util.logging.Logger;
 
 /**
  * The CloudTransmissionVisitor is designed to adjust the SED for
@@ -14,6 +15,8 @@ public final class CloudTransmissionVisitor {
     private CloudTransmissionVisitor() {
     }
 
+    private static final Logger Log = Logger.getLogger( CloudTransmissionVisitor.class.getName() );
+
     /**
      * Constructs transmission visitor for clouds.
      */
@@ -21,17 +24,15 @@ public final class CloudTransmissionVisitor {
 
         if (cc == SPSiteQuality.CloudCover.EXACT) {
 
-            if (exactcc < 0.0) throw new IllegalArgumentException("Exact Cloud Cover must be >= zero.");
-            System.out.println("Using EXACT Cloud Cover = " + exactcc);
-
+            if (exactcc < 0.0) throw new IllegalArgumentException("Exact Cloud Cover must be >= zero magnitudes.");
             final double[][] data = new double[2][2];
-            data[0][0] = 100.0; // x = wavelength; should this be the real wavelength range?
+            data[0][0] = 100.0;                      // x = wavelength
             data[0][1] = 30000.0;
             data[1][0] = Math.pow(10, exactcc/-2.5); // y = transmission
             data[1][1] = data[1][0];
+            Log.fine(String.format("Exact cloud transmission = %.2f mag = %.4f", exactcc, data[1][0]));
             final TransmissionElement te;
             te = new TransmissionElement(new DefaultArraySpectrum(data));
-            System.out.println("Transmission = " + data[1][0]);
             return te;
 
         } else {

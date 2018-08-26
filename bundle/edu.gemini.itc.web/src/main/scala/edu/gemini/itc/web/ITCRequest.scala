@@ -106,29 +106,13 @@ object ITCRequest {
   }
 
   def obsConditionParameters(r: ITCRequest): ObservingConditions = {
-
-    val IQ = r.parameter("ImageQuality")
-    System.out.println("IQ = " + IQ)
-
-
-
-    //val iq = r.parameter("ImageQuality") match {
-    //  case "EXACT" => Some(r.doubleParameter("ExactIQ"))
-    //  case _ => Some(r.enumParameter(classOf[SPSiteQuality.ImageQuality]))
-    //}
-    //System.out.println("MYIQ = " + iq)
-
     val iq      = r.enumParameter(classOf[SPSiteQuality.ImageQuality])
-    System.out.println("IQ = " + iq)
-
     val cc      = r.enumParameter(classOf[SPSiteQuality.CloudCover])
     val wv      = r.enumParameter(classOf[SPSiteQuality.WaterVapor])
     val sb      = r.enumParameter(classOf[SPSiteQuality.SkyBackground])
     val airmass = r.doubleParameter("Airmass")
     val exactiq = r.doubleParameter("ExactIQ")
     val exactcc = r.doubleParameter("ExactCC")
-    System.out.println("ExactIQ = " + exactiq)
-    System.out.println("ExactCC = " + exactcc)
     ObservingConditions(iq, cc, wv, sb, airmass, exactiq, exactcc)
   }
 
