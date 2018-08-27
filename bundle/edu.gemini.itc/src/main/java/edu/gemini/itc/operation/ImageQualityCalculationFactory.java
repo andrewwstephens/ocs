@@ -20,12 +20,13 @@ public final class ImageQualityCalculationFactory {
             Instrument instrument) {
 
         if (observingConditions.iq() == SPSiteQuality.ImageQuality.EXACT) {
+            // Case C: The exact delivered FHWM at the science wavelength is specified.
             final double fwhm = observingConditions.exactiq();
             if (fwhm <= 0.0) throw new IllegalArgumentException("Exact Image Quality must be > zero arcseconds.");
             return new GaussianImageQualityCalculation(fwhm);
 
         } else if (sourceDefinition.profile() instanceof GaussianSource) {
-            // Case A The Image quality is defined by the user
+            // Case A: The Image quality is defined by the user
             // who has selected a Gaussian Extended source
             // Creates a GaussianImageQualityCalculation
             final double fwhm = ((GaussianSource) sourceDefinition.profile()).fwhm();
@@ -36,8 +37,8 @@ public final class ImageQualityCalculationFactory {
             final GuideProbe.Type wfs =
                     telescope.getWFS() == GuideProbe.Type.AOWFS ? GuideProbe.Type.OIWFS : telescope.getWFS();
 
-            // Case B The Image Quality is defined by either of the
-            // Probes in conjuction with the Atmosphric Seeing.
+            // Case B: The Image Quality is defined by either of the
+            // Probes in conjunction with the Atmospheric Seeing.
             // This case creates an ImageQuality Calculation
             return new ImageQualityCalculation(
                     wfs,
