@@ -11,6 +11,7 @@ import scala.Option;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 
 /**
@@ -18,6 +19,7 @@ import java.util.List;
  */
 public final class Gnirs extends Instrument implements SpectroscopyInstrument {
 
+    private static final Logger Log = Logger.getLogger( Gnirs.class.getName() );
     private static final double LONG_CAMERA_SCALE_FACTOR = 3.0;
 
     private static final double XDISP_CENTRAL_WAVELENGTH = 1616.85;
@@ -138,6 +140,7 @@ public final class Gnirs extends Instrument implements SpectroscopyInstrument {
         }
 
         if (gp.altair().isDefined()) {
+            Log.fine(String.format("Guide star separation = %.1f arcseconds", gp.altair().get().guideStarSeparation()));
             if ((gp.altair().get().guideStarSeparation() < 0 || gp.altair().get().guideStarSeparation() > 25))
                 throw new RuntimeException("Altair Guide star distance must be between 0 and 25 arcsecs for GNIRS.\n");
         }
