@@ -112,7 +112,9 @@
             <!-- Spectrum definition-->
             <tr>
                 <td colspan="3"><b>Spectral distribution:</b> <i><font size="-1">(<a href="#" onclick="window.open('http://www.gemini.edu/?q=node/10257#spectral','mywindow','width=1000,height=700,toolbar=no,location=no,directories=no,sta tus=no,menubar=no,scrollbars=yes,copyhistory=no,resizable=no'); return false">more info</a>)</font></i><br>
+
                     <i>Choose one SED, the redshift and extinction</i></td>
+
             </tr>
 
             <tr>
@@ -166,16 +168,20 @@
                         <option value="G0V-r">G0V-r</option>
                         <option value="G0III">G0III</option>
                         <option value="G0I">G0I</option>
+                        <option value="G0I">G0I</option>
                         <option value="G2V">G2V</option>
                         <option value="G5V">G5V</option>
                         <option value="G5V-w">G5V-w</option>
                         <option value="G5V-r">G5V-r</option>
                         <option value="G5III">G5III</option>
+                        <option value="G5III">G5III</option>
+                        <option value="G5III-w">G5III-w</option>
                         <option value="G5III-w">G5III-w</option>
                         <option value="G5III-r">G5III-r</option>
                         <option value="G5I">G5I</option>
                         <option value="K0V">K0V</option>
                         <option value="K0V-r">K0V-r</option>
+                        <option value="K0III">K0III</option>
                         <option value="K0III">K0III</option>
                         <option value="K0III-w">K0III-w</option>
                         <option value="K0III-r">K0III-r</option>
@@ -340,17 +346,18 @@
         <table border="0" width="100%" background="https://www.gemini.edu/sciops/instruments/itc/mez-green-bckgrnd.gif" cellpadding="6" cellspacing="0">
             <tbody>
             <tr>
-                <td colspan="6">Please read the <a href="#" onclick="window.open('http://www.gemini.edu/?q=node/10272','mywindow','width=1000,height=700,toolbar=no,location=no,directories=no,sta tus=no,menubar=no,scrollbars=yes,copyhistory=no,resizable=no'); return false">explanatory notes</a>
-                    for the meaning of the percentiles and to ensure that your selected conditions
-                    are appropriate for the observing wavelength. Further details are
+      <td colspan="6">Please read the <a href="#" onclick="window.open('http://www.gemini.edu/?q=node/10272','mywindow','width=1000,height=700,toolbar=no,location=no,directories=no,sta tus=no,menubar=no,scrollbars=yes,copyhistory=no,resizable=no'); return false">explanatory notes</a>
+          for the meaning of the percentiles and to ensure that your selected conditions
+          are appropriate for the observing wavelength. Further details are
                     available on the <a href="#" onclick="window.open('http://www.gemini.edu/?q=node/10781#ImageQuality','mywindow','width=1000,height=700,toolbar=no,location=no,directories=no,sta tus=no,menubar=no,scrollbars=yes,copyhistory=no,resizable=no'); return false">observing condition constraints</a> pages. </td>
             </tr>
             <tr>
-                <td><b>Image Quality:</b></td>
+          <td><b>Image Quality:</b></td>
                 <td><input name="ImageQuality" value="PERCENT_20" type="radio" /> 20%/Best</td>
                 <td><input name="ImageQuality" value="PERCENT_70" type="radio" /> 70%/Good</td>
                 <td><input name="ImageQuality" value="PERCENT_85" type="radio" checked/> 85%/Poor</td>
                 <td><input name="ImageQuality" value="ANY"        type="radio" /> Any</td>
+          <td><input name="ImageQuality" value="EXACT"      type="radio" /> <input name="ExactIQ" type="text" value="1.1" size="4"> arcsec​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​​</td>
             </tr>
             <tr>
                 <td><b>Cloud Cover:</b></td>
@@ -358,6 +365,7 @@
                 <td><input name="CloudCover" value="PERCENT_70" type="radio" checked /> 70%/Cirrus</td>
                 <td><input name="CloudCover" value="PERCENT_80" type="radio" /> 80%/Cloudy</td>
                 <td><input name="CloudCover" value="ANY"        type="radio" /> Any</td>
+		  <td><input name="CloudCover" value="EXACT"      type="radio" /> <input name="ExactCC" type="text" value="0.3" size="4"> mag</td>
             </tr>
             <tr>
                 <td><b>Water Vapor:</b></td>
@@ -374,7 +382,7 @@
                 <td><input name="SkyBackground" value="ANY"        type="radio" /> Any/Bright</td>
             </tr>
             <tr>
-                <td><b>Airmass:</b></td>
+          <td><b>Airmass:</b></td>
                 <td><input name="Airmass" value="1.2" type="radio" /> &lt;1.2</td>
                 <td><input name="Airmass" value="1.5" type="radio" checked /> 1.5</td>
                 <td><input name="Airmass" value="2.0" type="radio" /> 2.0</td>
