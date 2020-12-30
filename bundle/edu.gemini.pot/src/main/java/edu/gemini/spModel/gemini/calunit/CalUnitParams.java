@@ -6,9 +6,7 @@ import edu.gemini.spModel.type.ObsoletableSpType;
 import edu.gemini.spModel.type.SequenceableSpType;
 import edu.gemini.spModel.type.SpTypeUtil;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public final class CalUnitParams {
@@ -123,6 +121,10 @@ public final class CalUnitParams {
         public static List<Lamp> read(String formattedList) {
             String[] ar = formattedList.split(",");
             return Arrays.stream(ar).map(Lamp::getLamp).collect(Collectors.toList());
+        }
+
+        public static String write(final SortedSet<Lamp> lamps) {
+            return show(lamps, Lamp::name);
         }
     }
 

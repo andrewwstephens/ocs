@@ -78,7 +78,7 @@ public class OverheadTablePrinter {
 
 
         if (calcMethod instanceof ImagingInt) {
-            this.numOfExposures = (int)(((ImagingResult) result).is2nCalc().numberSourceExposures() * obs.sourceFraction());
+            this.numOfExposures = (int)(((ImagingResult) result).is2nCalc().numberSourceExposures() / obs.sourceFraction());
         } else if (calcMethod instanceof ImagingS2N) {
             this.numOfExposures = ((ImagingS2N) calcMethod).exposures();
         } else if (calcMethod instanceof SpectroscopyS2N) {
@@ -263,7 +263,7 @@ public class OverheadTablePrinter {
         }
 
         long totalTime = PlannedTimeMath.totalTimeWithReacq(pta, numReacq);
-        buf.append("<tr><td><b>Total time</b></td><td align=\"right\"><b>").append(String.format("%s", TimeAmountFormatter.getDescriptiveFormat(totalTime))).append("</b></td></tr>");
+        buf.append("<tr><td><b>Program time</b></td><td align=\"right\"><b>").append(String.format("%s", TimeAmountFormatter.getDescriptiveFormat(totalTime))).append("</b></td></tr>");
         buf.append("</table>");
 
         buf.append("</body></html>");

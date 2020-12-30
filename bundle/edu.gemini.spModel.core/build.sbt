@@ -7,11 +7,11 @@ unmanagedJars in Compile ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.scala-lang.modules" %% "scala-xml" % "1.0.5",
-  "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.4",
+  "org.scala-lang.modules" %% "scala-xml" % "1.2.0",
+  "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2",
   "org.scalaz" %% "scalaz-core" % ScalaZVersion,
   "org.scalaz" %% "scalaz-effect" % ScalaZVersion,
-  "org.typelevel"  %% "squants"  % "1.5.0"
+  "org.typelevel"  %% "squants"  % "1.6.0"
   )
 
 osgiSettings
@@ -33,7 +33,7 @@ sourceGenerators in Compile += Def.task {
   val outDir = (sourceManaged in Compile).value / "edu" / "gemini" / "spModel" / "core"
   val outFile = new File(outDir, ocsVer.sourceFileName)
   outDir.mkdirs
-  IO.write(outFile, ocsVer.toClass) // UTF-8 is default
+  IO.write(outFile, ocsVer.toClass("edu.gemini.spModel.core")) // UTF-8 is default
   Seq(outFile)
 }.taskValue
 

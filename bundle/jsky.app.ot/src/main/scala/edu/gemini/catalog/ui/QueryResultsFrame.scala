@@ -151,7 +151,7 @@ object QueryResultsFrame extends Frame with PreferredSizeFrame {
 
                 if (updated) {
                   val info = ObservationInfo(c, mt)
-                  val tm   = TargetsModel(info.some, q.base, q.radiusConstraint, m.targets)
+                  val tm   = TargetsModel(info.some, q.base, q.radiusConstraint, m.probeCandidates)
                   updateResultsModel(tm)
 
                   iw.repaint()
@@ -355,7 +355,11 @@ object QueryResultsFrame extends Frame with PreferredSizeFrame {
       case q: ConeSearchCatalogQuery =>
         unplotCurrent()
 
-        val model = TargetsModel(info, q.base, q.radiusConstraint, queryResult.result.targets.rows)
+        val pc = info.flatMap(_.guideProbe).fold(List.empty[ProbeCandidates]) { gp =>
+          List(ProbeCandidates(gp, queryResult.result.targets.rows))
+        }
+
+        val model = TargetsModel(info, q.base, q.radiusConstraint, pc)
         updateResultsModel(model)
 
         // Update the count of rows
@@ -721,10 +725,11 @@ object QueryResultsFrame extends Frame with PreferredSizeFrame {
       val i = observationInfoFromForm
       val ctx = i.toContext
       for {
-        sel        <- guider.selection.item.some
-        c          <- ctx
-        s          <- sel.strategy.magnitudes(c, i.mt).map(k => ProbeLimits(sel.strategy.probeBands, c, k._2))
-      } limitsLabel.text = ~s.map(_.detailRange)
+        sel <- guider.selection.item.some
+        c   <- ctx
+        s   <- sel.strategy.magnitudes(c, i.mt).map(k => ProbeLimits.fromCalc(sel.strategy.probeBands, c, k._2))
+        dr  <- s.flatMap(_.detailRange)
+      } limitsLabel.text = dr
     }
 
     /**
@@ -858,7 +863,7 @@ object QueryResultsFrame extends Frame with PreferredSizeFrame {
 
         val coordinates = Coordinates(ra.value, dec.value)
         val info = observationInfoFromForm
-        val defaultQuery = CatalogQuery(coordinates, radiusConstraint, currentFilters, selectedCatalog)
+        val defaultQuery = ConeSearchCatalogQuery(None, coordinates, radiusConstraint, currentFilters, selectedCatalog)
 
         // Start with the guider's query and update it with the values on the UI
         val calculatedQuery = guider.selection.item.query.headOption.collect {
@@ -932,7 +937,7 @@ object QueryResultsFrame extends Frame with PreferredSizeFrame {
   }
 
   private def doNameSearch(search: String): Unit = {
-    catalogSearch(CatalogQuery(search), "Searching...", { x =>
+    catalogSearch(CatalogQuery.nameSearch(search), "Searching...", { x =>
       updateName(search, x.result.targets.rows)
     })
   }

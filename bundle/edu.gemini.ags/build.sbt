@@ -25,6 +25,8 @@ osgiSettings
 
 ocsBundleSettings
 
+fork in Test := true
+
 OsgiKeys.bundleActivator := None
 
 OsgiKeys.bundleSymbolicName := name.value
@@ -34,8 +36,7 @@ OsgiKeys.dynamicImportPackage := Seq("")
 OsgiKeys.exportPackage := Seq(
   "edu.gemini.ags.gems.*",
   "edu.gemini.ags.api.*",
-  "edu.gemini.ags.conf.*")
-
-OsgiKeys.privatePackage := Seq("edu.gemini.ags.impl.*")
+  "edu.gemini.ags.conf.*",
+  "edu.gemini.ags.impl.*")
 
 parallelExecution in Test := false

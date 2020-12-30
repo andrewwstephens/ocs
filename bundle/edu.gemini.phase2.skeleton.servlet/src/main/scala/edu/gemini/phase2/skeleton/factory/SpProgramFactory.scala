@@ -31,7 +31,6 @@ object SpProgramFactory {
 
   private val NGO_TIME_ACCT = Map(
     AR -> TimeAcctCategory.AR,
-    AU -> TimeAcctCategory.AU,
     BR -> TimeAcctCategory.BR,
     CA -> TimeAcctCategory.CA,
     CL -> TimeAcctCategory.CL,
@@ -49,7 +48,8 @@ object SpProgramFactory {
   private val SPC_TIME_ACCT = Map(
     DEMO_SCIENCE        -> TimeAcctCategory.DS,
     DIRECTORS_TIME      -> TimeAcctCategory.DD,
-    SYSTEM_VERIFICATION -> TimeAcctCategory.SV
+    SYSTEM_VERIFICATION -> TimeAcctCategory.SV,
+    GUARANTEED_TIME     -> TimeAcctCategory.GT
     // NOTE: no category for poor weather
   )
 

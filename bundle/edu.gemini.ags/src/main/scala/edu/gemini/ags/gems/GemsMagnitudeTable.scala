@@ -4,17 +4,16 @@ import edu.gemini.ags.api.AgsMagnitude.{MagnitudeCalc, MagnitudeTable}
 import edu.gemini.pot.ModelConverters._
 import edu.gemini.catalog.api._
 import edu.gemini.spModel.core._
-import edu.gemini.spModel.gemini.gems.{Canopus, GemsInstrument}
+import edu.gemini.spModel.gemini.gems.CanopusWfs
 import edu.gemini.spModel.gemini.gsaoi.{Gsaoi, GsaoiOdgw}
 import edu.gemini.spModel.gems.GemsGuideStarType
-import edu.gemini.spModel.guide.{GuideSpeed, GuideProbe}
+import edu.gemini.spModel.guide.{GuideProbe, GuideSpeed}
 import edu.gemini.spModel.obs.context.ObsContext
 import edu.gemini.spModel.rich.shared.immutable._
-import edu.gemini.spModel.gemini.obscomp.SPSiteQuality.Conditions
-
+import edu.gemini.spModel.gemini.obscomp.SPSiteQuality.{Conditions, CloudCover, ImageQuality, SkyBackground, WaterVapor}
 import edu.gemini.skycalc
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import scalaz._
 import Scalaz._
 
@@ -24,8 +23,36 @@ import Scalaz._
  */
 object GemsMagnitudeTable extends MagnitudeTable {
 
-  val CwfsAdjust: MagnitudeConstraints => Conditions => MagnitudeConstraints =
-    mc => conds => conds.cc.adjust(conds.iq.adjust(mc))
+  import ImageQuality.{  PERCENT_20 => IQ20, PERCENT_70 => IQ70, PERCENT_85 => IQ85, ANY => IQAny }
+  import SkyBackground.{ PERCENT_20 => SB20, PERCENT_50 => SB50, PERCENT_80 => SB80, ANY => SBAny }
+
+  private val cc50 = Map(
+    ((IQ20,  SB20 ), (18.5, 10.5)),
+    ((IQ20,  SB50 ), (18.5, 10.5)),
+    ((IQ20,  SB80 ), (18.4, 10.2)),
+    ((IQ20,  SBAny), (18.3, 10.0)),
+    ((IQ70,  SB20 ), (18.2, 10.0)),
+    ((IQ70,  SB50 ), (18.2, 10.0)),
+    ((IQ70,  SB80 ), (18.1,  9.7)),
+    ((IQ70,  SBAny), (18.0,  9.5)),
+    ((IQ85,  SB20 ), (17.9,  9.5)),
+    ((IQ85,  SB50 ), (17.9,  9.5)),
+    ((IQ85,  SB80 ), (17.8,  9.2)),
+    ((IQ85,  SBAny), (17.7,  9.0)),
+    ((IQAny, SB20 ), (17.6,  9.0)),
+    ((IQAny, SB50 ), (17.3,  9.0)),
+    ((IQAny, SB80 ), (17.0,  9.0)),
+    ((IQAny, SBAny), (16.7,  8.7))
+  )
+
+  def cwfsConstraintsForCc50(iq: ImageQuality, sb: SkyBackground): MagnitudeConstraints = {
+    val (f, b) = cc50((iq, sb))
+    MagnitudeConstraints(RBandsList, FaintnessConstraint(f), Some(SaturationConstraint(b)))
+  }
+
+  val CwfsConstraints: Conditions => MagnitudeConstraints = { c =>
+    c.cc.adjust(cwfsConstraintsForCc50(c.iq, c.sb))
+  }
 
   val OtherAdjust: MagnitudeConstraints => Conditions => MagnitudeConstraints =
     mc => conds => conds.adjust(mc)
@@ -41,9 +68,6 @@ object GemsMagnitudeTable extends MagnitudeTable {
           f(conds)
       }
 
-    val cwfsCalc: MagnitudeConstraints => MagnitudeCalc = mc =>
-      magCalc(CwfsAdjust(mc))
-
     val odgwCalc: MagnitudeConstraints => MagnitudeCalc = mc =>
       magCalc(OtherAdjust(mc))
 
@@ -52,8 +76,8 @@ object GemsMagnitudeTable extends MagnitudeTable {
         case (Site.GS, odgw: GsaoiOdgw)  =>
           Some(odgwCalc(GsaoiOdgwMagnitudeLimitsCalculator.gemsMagnitudeConstraint(GemsGuideStarType.flexure, MagnitudeBand.H.some)))
 
-        case (Site.GS, can: Canopus.Wfs) =>
-          Some(cwfsCalc(CanopusWfsMagnitudeLimitsCalculator.gemsMagnitudeConstraint(GemsGuideStarType.tiptilt, MagnitudeBand.R.some)))
+        case (Site.GS, can: CanopusWfs) =>
+          Some(magCalc(CwfsConstraints))
 
         case _                           =>
           None
@@ -69,24 +93,7 @@ object GemsMagnitudeTable extends MagnitudeTable {
     def gemsMagnitudeConstraint(starType: GemsGuideStarType, nirBand: Option[MagnitudeBand]): MagnitudeConstraints
 
     def adjustGemsMagnitudeConstraintForJava(starType: GemsGuideStarType, nirBand: Option[MagnitudeBand], conditions: Conditions): MagnitudeConstraints
-
-    def searchCriterionBuilder(name: String, radiusLimit: skycalc.Angle, instrument: GemsInstrument, magConstraint: MagnitudeConstraints, posAngles: java.util.Set[Angle]): CatalogSearchCriterion = {
-      val radiusConstraint = RadiusConstraint.between(Angle.zero, radiusLimit.toNewModel)
-      val searchOffset = instrument.getOffset.asScalaOpt.map(_.toNewModel)
-      val searchPA = posAngles.asScala.headOption
-      CatalogSearchCriterion(name, radiusConstraint, magConstraint, searchOffset, searchPA)
-    }
-
   }
-
-  /**
-   * Unfortunately, we need a lookup table for the Mascot algorithm to map GemsInstruments to GemsMagnitudeLimitsCalculators.
-   * We cannot include this in the GemsInstrument as this would cause dependency issues and we want to decouple these.
-   */
-  lazy val GemsInstrumentToMagnitudeLimitsCalculator = Map[GemsInstrument, LimitsCalculator](
-    GemsInstrument.gsaoi      -> GsaoiOdgwMagnitudeLimitsCalculator,
-    GemsInstrument.flamingos2 -> Flamingos2OiwfsMagnitudeLimitsCalculator
-  )
 
   lazy val GsaoiOdgwMagnitudeLimitsCalculator = new LimitsCalculator {
     /**
@@ -115,19 +122,18 @@ object GemsMagnitudeTable extends MagnitudeTable {
    * be used directly by Mascot, since it cannot be looked up through the GemsInstrumentToMagnitudeLimitsCalculator map.
    */
   trait CanopusWfsCalculator extends LimitsCalculator {
-    def getNominalMagnitudeConstraints(cwfs: Canopus.Wfs): MagnitudeConstraints
+    def getNominalMagnitudeConstraints(cwfs: CanopusWfs): MagnitudeConstraints
   }
 
   lazy val CanopusWfsMagnitudeLimitsCalculator = new CanopusWfsCalculator {
-
     override def adjustGemsMagnitudeConstraintForJava(starType: GemsGuideStarType, nirBand: Option[MagnitudeBand], conditions: Conditions): MagnitudeConstraints =
-      CwfsAdjust(gemsMagnitudeConstraint(starType, nirBand))(conditions)
+      CwfsConstraints(conditions)
 
-    override def gemsMagnitudeConstraint(starType: GemsGuideStarType, nirBand: Option[MagnitudeBand]) =
-      magLimits(RBandsList, 15.0, 7.5)
+    override def gemsMagnitudeConstraint(starType: GemsGuideStarType, nirBand: Option[MagnitudeBand]): MagnitudeConstraints =
+      CwfsConstraints(Conditions.NOMINAL)
 
-    override def getNominalMagnitudeConstraints(cwfs: Canopus.Wfs): MagnitudeConstraints =
-      magLimits(RBandsList, 15.0, 7.5)
+    override def getNominalMagnitudeConstraints(cwfs: CanopusWfs): MagnitudeConstraints =
+      CwfsConstraints(Conditions.NOMINAL)
   }
 
   private lazy val Flamingos2OiwfsMagnitudeLimitsCalculator = new LimitsCalculator {

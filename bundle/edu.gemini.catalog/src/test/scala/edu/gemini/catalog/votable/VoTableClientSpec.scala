@@ -7,7 +7,6 @@ import java.util.concurrent.atomic.AtomicInteger
 import edu.gemini.catalog.api._
 import edu.gemini.catalog.api.CatalogName._
 import edu.gemini.spModel.core._
-import org.apache.commons.httpclient.NameValuePair
 import org.specs2.mutable.Specification
 
 import scala.concurrent._
@@ -24,20 +23,20 @@ class VoTableClientSpec extends Specification with VoTableClient {
     val dec = Declination.fromAngle(Angle.fromDegrees(20)).getOrElse(Declination.zero)
     val coordinates = Coordinates(ra, dec)
 
-    val query = CatalogQuery(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.1)), noMagnitudeConstraint, UCAC4)
+    val query = CatalogQuery.coneSearch(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.1)), noMagnitudeConstraint, CatalogName.UCAC4)
     case class CountingCachedBackend(counter: AtomicInteger, file: String) extends CachedBackend {
       override val catalogUrls = NonEmptyList(new URL(s"file://$file"))
       override protected def query(e: SearchKey) = {
         counter.incrementAndGet()
-        VoTableParser.parse(UCAC4, this.getClass.getResourceAsStream(file)).fold(p => QueryResult(e.query, CatalogQueryResult(TargetsTable.Zero, List(p))), y => QueryResult(e.query, CatalogQueryResult(y)))
+        VoTableParser.parse(CatalogName.UCAC4, this.getClass.getResourceAsStream(file)).fold(p => QueryResult(e.query, CatalogQueryResult(TargetsTable.Zero, List(p))), y => QueryResult(e.query, CatalogQueryResult(y)))
       }
     }
 
     "produce query params" in {
-      ConeSearchBackend.queryParams(query) should beEqualTo(Array(new NameValuePair("CATALOG", "ucac4"), new NameValuePair("RA", "10.000"), new NameValuePair("DEC", "20.000"), new NameValuePair("SR", "0.100")))
+      ConeSearchBackend.queryParams(query) should beEqualTo(Array(("CATALOG", "ucac4"), ("RA", "10.000"), ("DEC", "20.000"), ("SR", "0.100")))
     }
     "make a query to a bad site" in {
-      Await.result(doQuery(query, new URL("http://unknown site"), ConeSearchBackend)(implicitly), 30.seconds) should throwA[UnknownHostException]
+      Await.result(doQuery(query, new URL("http://unknown.site.7732BFA1-9937-4D1E-8969-B02782608DAD"), ConeSearchBackend)(implicitly), 30.seconds) should throwA[UnknownHostException]
     }
     "be able to select the first successful of several futures" in {
       def f1 = Future { Thread.sleep(1000); throw new RuntimeException("oops") }
@@ -68,7 +67,7 @@ class VoTableClientSpec extends Specification with VoTableClient {
       val counter = new AtomicInteger(0)
       val countingBackend = CountingCachedBackend(counter, "/votable-ucac4.xml")
       // query2 has smaller radius
-      val query2 = CatalogQuery(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.1)), noMagnitudeConstraint, UCAC4)
+      val query2 = CatalogQuery.coneSearch(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.1)), noMagnitudeConstraint, CatalogName.UCAC4)
       // Backend should be hit at most once per url
       val r = for {
           f1 <- VoTableClient.catalog(query, Some(countingBackend))(implicitly)
@@ -82,8 +81,8 @@ class VoTableClientSpec extends Specification with VoTableClient {
       val counter = new AtomicInteger(0)
       val countingBackend = CountingCachedBackend(counter, "/votable-ucac4.xml")
       // query2 has a bit bigger radius but the widening effect should avoid doing another query
-      val query = CatalogQuery(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromArcmin(10)), noMagnitudeConstraint, UCAC4)
-      val query2 = CatalogQuery(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromArcmin(12)), noMagnitudeConstraint, UCAC4)
+      val query = CatalogQuery.coneSearch(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromArcmin(10)), noMagnitudeConstraint, CatalogName.UCAC4)
+      val query2 = CatalogQuery.coneSearch(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromArcmin(12)), noMagnitudeConstraint, CatalogName.UCAC4)
       // Backend should be hit at most once per url
       val r = for {
           f1 <- VoTableClient.catalog(query, Some(countingBackend))(implicitly)
@@ -97,9 +96,9 @@ class VoTableClientSpec extends Specification with VoTableClient {
       val counter = new AtomicInteger(0)
       val countingBackend = CountingCachedBackend(counter, "/votable-ucac4.xml")
       // query2 has a bit bigger radius but the widening effect should avoid doing another query
-      val query2 = CatalogQuery(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.11)), noMagnitudeConstraint, UCAC4)
+      val query2 = CatalogQuery.coneSearch(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.11)), noMagnitudeConstraint, CatalogName.UCAC4)
       // query3 is wider it should hit the catalog again
-      val query3 = CatalogQuery(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.2)), noMagnitudeConstraint, UCAC4)
+      val query3 = CatalogQuery.coneSearch(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.2)), noMagnitudeConstraint, CatalogName.UCAC4)
       // Backend should be hit at most once per url
       val r = for {
           f1 <- VoTableClient.catalog(query, Some(countingBackend))(implicitly)
@@ -114,7 +113,7 @@ class VoTableClientSpec extends Specification with VoTableClient {
       val counter = new AtomicInteger(0)
       val countingBackend = CountingCachedBackend(counter, "/votable-ucac4.xml")
       // query2 has smaller radius
-      val query2 = CatalogQuery(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.1)), noMagnitudeConstraint, UCAC4)
+      val query2 = CatalogQuery.coneSearch(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.1)), noMagnitudeConstraint, CatalogName.UCAC4)
       // Backend should be hit at most once per url
       val r = for {
           f1 <- VoTableClient.catalog(query, Some(countingBackend))(implicitly)
@@ -129,7 +128,7 @@ class VoTableClientSpec extends Specification with VoTableClient {
       val counter = new AtomicInteger(0)
       val countingBackend = CountingCachedBackend(counter, "/votable-ucac4.xml")
       // query2 has smaller radius
-      val query2 = CatalogQuery(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.05)), noMagnitudeConstraint, UCAC4)
+      val query2 = CatalogQuery.coneSearch(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.05)), noMagnitudeConstraint, CatalogName.UCAC4)
       //
       val r = for {
           f1 <- VoTableClient.catalog(query, Some(countingBackend))(implicitly)
@@ -144,7 +143,7 @@ class VoTableClientSpec extends Specification with VoTableClient {
       val counter = new AtomicInteger(0)
       val countingBackend = CountingCachedBackend(counter, "/votable-ucac4.xml")
       val mc = MagnitudeConstraints(SingleBand(MagnitudeBand.J), FaintnessConstraint(15.0), None)
-      val query = CatalogQuery(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.1)), mc, UCAC4)
+      val query = CatalogQuery.coneSearch(coordinates, RadiusConstraint.between(Angle.fromDegrees(0), Angle.fromDegrees(0.1)), mc, CatalogName.UCAC4)
 
       val result = Await.result(VoTableClient.catalog(query, Some(countingBackend))(implicitly), 10.seconds)
       // Extract the query params from the results

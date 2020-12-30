@@ -3,7 +3,7 @@ package edu.gemini.catalog.ui
 import javax.swing.JTable
 import javax.swing.table._
 import edu.gemini.ags.api.AgsMagnitude.MagnitudeTable
-import edu.gemini.ags.api.GuideInFOV.{Outside, Inside}
+import edu.gemini.ags.api.GuideInFOV.{Inside, Outside}
 import edu.gemini.ags.api._
 import edu.gemini.ags.conf.ProbeLimitsTable
 import edu.gemini.catalog.api._
@@ -11,11 +11,10 @@ import edu.gemini.catalog.api.CatalogName.UCAC4
 import edu.gemini.pot.sp.SPComponentType
 import edu.gemini.shared.util.immutable.{None => JNone}
 import edu.gemini.shared.util.immutable.ScalaConverters._
-import edu.gemini.spModel.ags.AgsStrategyKey.{ Pwfs1NorthKey, Pwfs2NorthKey, Pwfs1SouthKey, Pwfs2SouthKey, GemsKey }
+import edu.gemini.spModel.ags.AgsStrategyKey.{Ngs2Key, Pwfs1NorthKey, Pwfs1SouthKey, Pwfs2NorthKey, Pwfs2SouthKey}
 import edu.gemini.spModel.core._
 import edu.gemini.spModel.gemini.altair.{AltairParams, InstAltair}
 import edu.gemini.spModel.gemini.flamingos2.Flamingos2
-import edu.gemini.spModel.gemini.gems.Canopus
 import edu.gemini.spModel.gemini.gmos.{InstGmosNorth, InstGmosSouth}
 import edu.gemini.spModel.gemini.gnirs.{GNIRSConstants, InstGNIRS}
 import edu.gemini.spModel.gemini.gpi.Gpi
@@ -30,7 +29,7 @@ import edu.gemini.spModel.gemini.phoenix.InstPhoenix
 import edu.gemini.spModel.gemini.texes.InstTexes
 import edu.gemini.spModel.gemini.trecs.InstTReCS
 import edu.gemini.spModel.gemini.visitor.VisitorInstrument
-import edu.gemini.spModel.guide.{GuideStarValidation, ValidatableGuideProbe}
+import edu.gemini.spModel.guide.{GuideProbe, GuideStarValidation, ValidatableGuideProbe}
 import edu.gemini.spModel.obs.context.ObsContext
 import edu.gemini.spModel.target.SPTarget
 import edu.gemini.spModel.target.env.TargetEnvironment
@@ -42,6 +41,7 @@ import scala.swing.{Alignment, Component, Label}
 import scala.collection.JavaConverters._
 import scalaz._
 import Scalaz._
+import edu.gemini.spModel.gemini.gems.CanopusWfs
 import edu.gemini.spModel.gemini.ghost.Ghost
 
 /**
@@ -80,7 +80,7 @@ case class ObservationInfo(ctx: Option[ObsContext],
   def guideProbe: Option[ValidatableGuideProbe] =
     strategy.map(_.strategy).flatMap { s =>
       s.key match {
-        case GemsKey => Some(Canopus.Wfs.cwfs3)
+        case Ngs2Key => Some(CanopusWfs.cwfs1)
         case _       => s.guideProbes.headOption.collect {
           case v: ValidatableGuideProbe => v
         }
@@ -228,31 +228,38 @@ case class IdColumn(title: String) extends CatalogNavigatorColumn[String] {
 object GuidingQualityColumn {
   implicit val analysisOrder:Order[AgsAnalysis] = Order.orderBy(_.quality)
 
+  def validatableGuideProbe(gp: GuideProbe): Option[ValidatableGuideProbe] =
+    gp match {
+      case vgp: ValidatableGuideProbe => Some(vgp)
+      case _                          => None
+    }
+
   // Calculate the guiding quality of the target considering only its magnitude
   // while ignoring reachability.
-  def target2Analysis(info: Option[ObservationInfo], t: SiderealTarget): Option[AgsAnalysis] =
+  def target2Analysis(info: Option[ObservationInfo], gpo: Option[GuideProbe], t: SiderealTarget): Option[AgsAnalysis] =
     for {
       o   <- info
+      vgp <- gpo.flatMap(validatableGuideProbe) orElse o.guideProbe
       s   <- o.strategy
-      gp  <- o.guideProbe
       ctx <- o.toContext
-      a   <- s.strategy.analyzeMagnitude(ctx, o.mt, gp, t)
+      a   <- s.strategy.analyzeMagnitude(ctx, o.mt, vgp, t)
     } yield a
 
   // Calculate if the target is inside the probe FOV
-  def target2FOV(info: Option[ObservationInfo], t: Target): Option[GuideInFOV] = {
+  def target2FOV(info: Option[ObservationInfo], gpo: Option[GuideProbe], t: Target): Option[GuideInFOV] = {
     for {
       o   <- info
-      gp  <- o.guideProbe
+      vgp <- gpo.flatMap(validatableGuideProbe) orElse o.guideProbe
       ctx <- o.toContext
       c   <- t.coords(None)
       st = new SPTarget(SiderealTarget.empty.copy(coordinates = c))
-    } yield (gp.validate(st, ctx) === GuideStarValidation.VALID).fold(Inside, Outside)
+    } yield (vgp.validate(st, ctx) === GuideStarValidation.VALID).fold(Inside, Outside)
   }
 }
 
 case class GuidingQualityColumn(info: Option[ObservationInfo], title: String) extends CatalogNavigatorColumn[AgsGuideQuality] {
-  val gf: SiderealTarget @?> AgsGuideQuality = PLens{ t => GuidingQualityColumn.target2Analysis(info, t).map(p => Store(_ => sys.error("Not in use"), p.quality)) }
+  val gf: SiderealTarget @?> AgsGuideQuality =
+    PLens{ t => GuidingQualityColumn.target2Analysis(info, None, t).map(p => Store(_ => sys.error("Not in use"), p.quality)) }
 
   override val lens: Target @?> AgsGuideQuality = PLens(_.fold(
     PLens.nil.run,
@@ -264,7 +271,8 @@ case class GuidingQualityColumn(info: Option[ObservationInfo], title: String) ex
 }
 
 case class InFOVColumn(info: Option[ObservationInfo], title: String) extends CatalogNavigatorColumn[GuideInFOV] {
-  val gf: SiderealTarget @?> GuideInFOV = PLens{ t => GuidingQualityColumn.target2FOV(info, t).map(p => Store(_ => sys.error("Not in use"), p)) }
+  val gf: SiderealTarget @?> GuideInFOV =
+    PLens{ t => GuidingQualityColumn.target2FOV(info, None, t).map(p => Store(_ => sys.error("Not in use"), p)) }
 
   override val lens: Target @?> GuideInFOV = PLens(_.fold(
     PLens.nil.run,
@@ -342,7 +350,11 @@ case class MagnitudeColumn(band: MagnitudeBand) extends CatalogNavigatorColumn[M
 /**
  * Data model for the main table of the catalog navigator
  */
-case class TargetsModel(info: Option[ObservationInfo], base: Coordinates, radiusConstraint: RadiusConstraint, targets: List[SiderealTarget]) extends AbstractTableModel {
+case class TargetsModel(info: Option[ObservationInfo], base: Coordinates, radiusConstraint: RadiusConstraint, probeCandidates: List[ProbeCandidates]) extends AbstractTableModel {
+
+  val targets: List[SiderealTarget] =
+    probeCandidates.flatMap(_.targets)
+
   // Required to give limits to the existential type list
   type ColumnsList = List[CatalogNavigatorColumn[A] forSome { type A >: Null <: AnyRef}]
 

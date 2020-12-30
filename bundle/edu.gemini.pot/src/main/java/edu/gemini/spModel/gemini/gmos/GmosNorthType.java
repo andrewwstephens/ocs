@@ -78,6 +78,7 @@ public class GmosNorthType {
         },
         B600_G5307(  "B600_G5307",  "B600",  600, Ictd.track("B600")),
         R600_G5304(  "R600_G5304",  "R600",  600, Ictd.track("R600")),
+        B480_G5309(  "B480_G5309",  "B480",  480, Ictd.track("B480")),
         R400_G5305(  "R400_G5305",  "R400",  400, Ictd.track("R400")),
         R150_G5306(  "R150_G5306",  "R150",  150, Ictd.unavailable()) {
             @Override public boolean isObsolete() { return true; }
@@ -302,7 +303,9 @@ public class GmosNorthType {
         NS_3("N and S 1.00 arcsec", 1.00, "NS1.0arcsec",       Ictd.track("NS1.0arcsec")),
         NS_4("N and S 1.50 arcsec", 1.50, "NS1.5arcsec",       Ictd.track("NS1.5arcsec")),
         NS_5("N and S 2.00 arcsec", 2.00, "NS2.0arcsec",       Ictd.track("NS2.0arcsec")),
-        CUSTOM_MASK("Custom Mask", "custom",                   Ictd.installed()),
+        CUSTOM_MASK("Custom Mask", "custom",                   Ictd.installed()) {
+            @Override public boolean isCustom() { return true; }
+        },
         ;
 
         /** The default FPUnit value **/
@@ -317,7 +320,6 @@ public class GmosNorthType {
         private double _width;
 
         private final IctdTracking _ictd;
-
 
         // initialize with the name and slit width in arcsec
         FPUnitNorth(String displayValue, String logValue, IctdTracking ictd) {
@@ -376,6 +378,8 @@ public class GmosNorthType {
         public boolean isImaging() {
             return this == FPU_NONE;
         }
+
+        @Override public boolean isCustom() { return false; }
 
         /**
          * Test to see if FPU is in spectroscopic mode.

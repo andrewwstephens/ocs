@@ -51,7 +51,6 @@ package object immutable {
   type NgoPartner = M.NgoPartner
   object NgoPartner extends EnumObject[M.NgoPartner] {
     val AR = M.NgoPartner.AR
-    val AU = M.NgoPartner.AU
     val BR = M.NgoPartner.BR
     val CA = M.NgoPartner.CA
     val CL = M.NgoPartner.CL
@@ -76,6 +75,7 @@ package object immutable {
     val DIRECTORS_TIME      = M.SpecialProposalType.DIRECTORS_TIME
     val POOR_WEATHER        = M.SpecialProposalType.POOR_WEATHER
     val SYSTEM_VERIFICATION = M.SpecialProposalType.SYSTEM_VERIFICATION
+    val GUARANTEED_TIME     = M.SpecialProposalType.GUARANTEED_TIME
   }
 
   type Flamingos2Filter = M.Flamingos2Filter
@@ -489,6 +489,7 @@ package object immutable {
 
   type SubaruInstrument = M.SubaruInstrument
   object SubaruInstrument extends EnumObject[M.SubaruInstrument] {
+    val SUPRIME_CAM = M.SubaruInstrument.SUPRIME_CAM
     val COMICS = M.SubaruInstrument.COMICS
     val FMOS   = M.SubaruInstrument.FMOS
     val IRCS   = M.SubaruInstrument.IRCS

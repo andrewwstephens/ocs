@@ -26,7 +26,7 @@ import Scalaz._
  * The same logic is applied to various single-star guiding scenarios (i.e.,
  * everything except for GeMS).
  */
-case class SingleProbeStrategy(key: AgsStrategyKey, params: SingleProbeStrategyParams, backend: VoTableBackend = ConeSearchBackend) extends AgsStrategy {
+final case class SingleProbeStrategy(key: AgsStrategyKey, params: SingleProbeStrategyParams, backend: Option[VoTableBackend] = None) extends AgsStrategy {
   import SingleProbeStrategy._
 
   private val LOGGER = Logger.getLogger(classOf[SingleProbeStrategy].getName)
@@ -46,13 +46,13 @@ case class SingleProbeStrategy(key: AgsStrategyKey, params: SingleProbeStrategyP
   override def catalogQueries(ctx: ObsContext, mt: MagnitudeTable): List[CatalogQuery] =
     params.catalogQueries(withCorrectedSite(ctx), mt).toList
 
-  override def candidates(ctx: ObsContext, mt: MagnitudeTable)(ec: ExecutionContext): Future[List[(GuideProbe, List[SiderealTarget])]] = {
-    val empty = Future.successful(List((params.guideProbe: GuideProbe, List.empty[SiderealTarget])))
+  override def candidates(ctx: ObsContext, mt: MagnitudeTable)(ec: ExecutionContext): Future[List[ProbeCandidates]] = {
+    val empty = Future.successful(List(ProbeCandidates(params.guideProbe: GuideProbe, List.empty[SiderealTarget])))
 
     // We cannot let VoTableClient to filter targets as usual, instead we provide an empty magnitude constraint and filter locally
-    catalogQueries(withCorrectedSite(ctx), mt).strengthR(Some(backend)).headOption.map { case (a, b) => VoTableClient.catalog(a, b)(ec) }.map(_.flatMap {
+    catalogQueries(withCorrectedSite(ctx), mt).strengthR(backend).headOption.map { case (a, b) => VoTableClient.catalog(a, b)(ec) }.map(_.flatMap {
         case r if r.result.containsError => Future.failed(CatalogException(r.result.problems))
-        case r                           => Future.successful(List((params.guideProbe, r.result.targets.rows)))
+        case r                           => Future.successful(List(ProbeCandidates(params.guideProbe, r.result.targets.rows)))
     }).getOrElse(empty)
   }
 
@@ -60,9 +60,7 @@ case class SingleProbeStrategy(key: AgsStrategyKey, params: SingleProbeStrategyP
     // call candidates and extract the one and only tuple for this strategy,
     // throw away the guide probe (which we know anyway), and obtain just the
     // list of guide stars
-    candidates(ctx, mt)(ec).map { lst =>
-      lst.headOption.foldMap(_._2)
-    }
+    candidates(ctx, mt)(ec).map(_.headOption.foldMap(_.targets))
 
   override def estimate(ctx: ObsContext, mt: MagnitudeTable)(ec: ExecutionContext): Future[AgsStrategy.Estimate] = {
     val ct = withCorrectedSite(ctx)
@@ -169,9 +167,9 @@ case class SingleProbeStrategy(key: AgsStrategyKey, params: SingleProbeStrategyP
         case vprobe: VProbe =>
           // Filter for brightness constraints and reachability.
           val results = ctx.getPosAngleConstraint match {
-            case FIXED                                                => filterBounded(List(ctx), mt, candidates)
-            case FIXED_180 | PARALLACTIC_ANGLE | PARALLACTIC_OVERRIDE => filterBounded(List(ctx, ctx180(ctx)), mt, candidates)
-            case UNBOUNDED                                            => filterUnbounded(ctx, mt, candidates)
+            case FIXED | PARALLACTIC_OVERRIDE  => filterBounded(List(ctx), mt, candidates)
+            case FIXED_180 | PARALLACTIC_ANGLE => filterBounded(List(ctx, ctx180(ctx)), mt, candidates)
+            case UNBOUNDED                     => filterUnbounded(ctx, mt, candidates)
           }
 
           // Select the highest quality target that vignettes the least.
@@ -180,9 +178,9 @@ case class SingleProbeStrategy(key: AgsStrategyKey, params: SingleProbeStrategyP
         // Otherwise proceed as normal.
         case _ =>
           val results = ctx.getPosAngleConstraint match {
-            case FIXED                                                => selectBounded(List(ctx), mt, candidates)
-            case FIXED_180 | PARALLACTIC_ANGLE | PARALLACTIC_OVERRIDE => selectBounded(List(ctx, ctx180(ctx)), mt, candidates)
-            case UNBOUNDED                                            => selectUnbounded(ctx, mt, candidates)
+            case FIXED | PARALLACTIC_OVERRIDE  => selectBounded(List(ctx), mt, candidates)
+            case FIXED_180 | PARALLACTIC_ANGLE => selectBounded(List(ctx, ctx180(ctx)), mt, candidates)
+            case UNBOUNDED                     => selectUnbounded(ctx, mt, candidates)
           }
           params.brightest(results)(_._2).map {
             case (angle, st) => AgsStrategy.Selection(angle, List(AgsStrategy.Assignment(params.guideProbe, st)))

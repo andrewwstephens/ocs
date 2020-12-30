@@ -5,7 +5,6 @@ import action.AppPreferencesAction
 import edu.gemini.model.p1.immutable._
 import edu.gemini.pit.ui.editor.Institutions
 import edu.gemini.pit.util.PDF
-import edu.gemini.pit.catalog._
 import edu.gemini.spModel.core.MagnitudeBand
 import view.obs.{ObsListGrouping, ObsListView}
 import edu.gemini.model.p1.visibility.TargetVisibilityCalc
@@ -15,9 +14,6 @@ import java.time.format.DateTimeFormatter
 import java.io.File
 
 import edu.gemini.pit.model.{AppPreferences, Model}
-import edu.gemini.pit.catalog.NotFound
-import edu.gemini.pit.catalog.Error
-
 import scalaz.{Band => _, _}
 import Scalaz._
 
@@ -28,7 +24,7 @@ object ProblemRobot {
                 val section: String,
                 fix: => Unit) extends Ordered[Problem] {
 
-    def compare(other: Problem) = Some(severity.compare(other.severity)).filter(_ != 0).getOrElse(description.compareTo(other.description))
+    def compare(other: Problem): Int = Some(severity.compare(other.severity)).filter(_ != 0).getOrElse(description.compareTo(other.description))
 
     def apply() {
       fix
@@ -44,11 +40,11 @@ object ProblemRobot {
   type Severity = Severity.Value
 
   private implicit class pimpLong(val n: Long) extends AnyVal {
-    def ms = n
-    def secs = ms * 1000
-    def mins = secs * 60
-    def hours = mins * 60
-    def days = hours * 24
+    def ms: Long = n
+    def secs: Long = ms * 1000
+    def mins: Long = secs * 60
+    def hours: Long = mins * 60
+    def days: Long = hours * 24
   }
 }
 
@@ -59,11 +55,11 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
   import ProblemRobot._
 
   val MaxAttachmentSize = 30 // in megabytes
-  val MaxAttachmentSizeBytes = MaxAttachmentSize * 1000 * 1000 // kbytes as used on the phase1 backends
+  val MaxAttachmentSizeBytes: Int = MaxAttachmentSize * 1000 * 1000 // kbytes as used on the phase1 backends
 
   // Our state
   type State = List[Problem]
-  protected[this] val initialState = Nil
+  protected[this] val initialState: List[Problem] = Nil
 
   override protected def refresh(m: Option[Model]) {
     state = m.map(m => new Checker(m.proposal, s.shell.file).all).getOrElse(Nil)
@@ -72,16 +68,17 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
   // TODO: factor this out better; it's a leftover from the original implementation
   private class Checker(p: Proposal, xml: Option[File]) {
 
-    lazy val all = {
+    lazy val all: List[Problem] = {
       val ps =
-        List(noObs, nonUpdatedInvestigatorName, noPIPhoneNumber, invalidPIPhoneNumber, titleCheck, band3option, abstractCheck, categoryCheck,
+        List(genderNotAnsweredCheck, noObs, nonUpdatedInvestigatorName, noPIPhoneNumber, invalidPIPhoneNumber, titleCheck, band3option, abstractCheck, categoryCheck,
           keywordCheck, attachmentCheck, attachmentValidityCheck, attachmentSizeCheck, missingObsDetailsCheck,
           duplicateInvestigatorCheck, ftReviewerOrMentor, ftAffiliationMismatch, band3Obs).flatten ++
           TimeProblems(p, s).all ++
           TimeProblems.noCFHClassical(p, s) ++
           TimeProblems.partnerZeroTimeRequest(p, s) ++
           TacProblems(p, s).all ++
-          Semester2020AProblems(p, s).all ++
+          Semester2020AProblems(p, s).all ++ // Still apply to 2020B.
+          Semester2020BProblems(p, s).all ++
           List(incompleteInvestigator, missingObsElementCheck, emptyTargetCheck,
             emptyEphemerisCheck, singlePointEphemerisCheck, initialEphemerisCheck, finalEphemerisCheck,
             badGuiding, cwfsCorrectionsIssue, badVisibility, iffyVisibility, minTimeCheck, wrongSite, band3Orphan2, gpiCheck, lgsIQ70Check, lgsGemsIQ85Check,
@@ -111,9 +108,9 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
       new Problem(Severity.Todo, "Please provide a PDF attachment.", "Overview", s.inOverview(_.attachment.select.doClick()))
     }
 
-    def extractInvestigator(i:PrincipalInvestigator) = (i.firstName, i.lastName, i.email, i.phone, i.status, i.address.institution)
+    def extractInvestigator(i:PrincipalInvestigator): (String, String, String, List[String], InvestigatorStatus, String) = (i.firstName, i.lastName, i.email, i.phone, i.status, i.address.institution)
 
-    def duplicateInvestigators(investigators:List[Investigator]) = {
+    def duplicateInvestigators(investigators: List[Investigator]): Boolean = {
       val uniqueInvestigators = for {
         i <- investigators
         if i.isComplete
@@ -121,12 +118,19 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
       uniqueInvestigators.distinct.size != uniqueInvestigators.size
     }
 
-    def similarInvestigators(investigators:List[Investigator]) = {
+    def similarInvestigators(investigators: List[Investigator]): Boolean = {
       val uniqueInvestigators = for {
         i <- investigators
         if i.isComplete
       } yield i.fullName.toLowerCase
       uniqueInvestigators.distinct.size != uniqueInvestigators.size
+    }
+
+    private val genderNotAnsweredCheck = when(p.investigators.pi.gender == InvestigatorGender.NONE_SELECTED) {
+      new Problem(Severity.Warning,
+        "No gender selected for the PI. This helps the evaluation of any gender bias in the process.",
+        "Overview",
+        s.inOverview(_.investigators.editPi()))
     }
 
     private val duplicateInvestigatorCheck = if (duplicateInvestigators(p.investigators.all)) {
@@ -153,7 +157,6 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
       msg = s"""Target "${t.name}" appears to be empty."""
     } yield new Problem(Severity.Error, msg, "Targets", s.inTargetsView(_.edit(t)))
 
-
     private lazy val emptyEphemerisCheck = for {
       t @ NonSiderealTarget(_, n, e, _) <- p.targets
       if e.isEmpty
@@ -166,11 +169,11 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
       msg = s"""Ephemeris for target "$n" contains only one point; please specify at least two."""
     } yield new Problem(Severity.Warning, msg, "Targets", s.inTargetsView(_.edit(t)))
 
-    lazy val dateFormat = DateTimeFormatter.ofPattern("yyyy-MMM-dd").withZone(ZoneId.of("UTC"))
+    lazy val dateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MMM-dd").withZone(ZoneId.of("UTC"))
 
     private lazy val initialEphemerisCheck = for {
       t @ NonSiderealTarget(_, n, e, _) <- p.targets
-      if !e.isEmpty
+      if e.nonEmpty
       ds = e.map(_.validAt) if ds.size > 1
       dsMin = ds.min
       diff = dsMin - p.semester.firstDay
@@ -266,7 +269,6 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
       if c.wv != WaterVapor.ANY
     } yield new Problem(Severity.Warning, s"GMOS is usually unaffected by atmospheric water vapor.", "Observations", s.inObsListView(o.band, _.Fixes.fixConditions(c)))
 
-
     private def gmosNDisperser(b: BlueprintBase, d: GmosNDisperser) = b match {
       case gn: GmosNBlueprintSpectrosopyBase => gn.disperser == d
       case _                                 => false
@@ -300,12 +302,12 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
       new Problem(Severity.Error, s"DSSI is no longer offered at Gemini for 2019B. $sol", "Observations", s.inObsListView(o.band, _.Fixes.fixBlueprint(b)))
     }
 
-    def isBand3(o: Observation) = o.band == Band.BAND_3 && (p.proposalClass match {
+    def isBand3(o: Observation): Boolean = o.band == Band.BAND_3 && (p.proposalClass match {
                   case q: QueueProposalClass if q.band3request.isDefined => true
                   case _                                                 => false
                 })
 
-    def isBand3(p: Proposal) = p.meta.band3OptionChosen && (p.proposalClass match {
+    def isBand3(p: Proposal): Boolean = p.meta.band3OptionChosen && (p.proposalClass match {
                   case q: QueueProposalClass if q.band3request.isDefined => true
                   case _                                                 => false
                 })
@@ -718,58 +720,76 @@ object TimeProblems {
   }
 }
 
+object ResourceIssues {
+  def resourceNotOfferedCheck[B <: BlueprintBase : Manifest](p: Proposal, s: ShellAdvisor, sem: Semester, name: Option[String] = None): List[Problem] = for {
+    o <- p.observations
+    b <- o.blueprint
+    if manifest[B].runtimeClass.isInstance(b)
+    if p.semester == sem
+  } yield new Problem(Severity.Error, s"${name.getOrElse(b.name)} not offered for ${sem.display}.",
+                      "Observations", s.inObsListView(o.band, _.Fixes.fixBlueprint(b)))
+}
+
+case class Semester2020BProblems(p: Proposal, s: ShellAdvisor) {
+  private val sem = Semester(2020, SemesterOption.B)
+
+  private val subaruResourcesNotOfferedCheck = for {
+    o <- p.observations
+    b <- o.blueprint
+    if b.isInstanceOf[SubaruBlueprint]
+    if p.semester == sem
+    i = b.asInstanceOf[SubaruBlueprint].instrument
+    if i == SubaruInstrument.FMOS && i != SubaruInstrument.SUPRIME_CAM && i != SubaruInstrument.COMICS
+  } yield new Problem(Severity.Error, s"Subaru ${i.value} not offered for 2020B.", "Observations", s.inObsListView(o.band, _.Fixes.fixBlueprint(b)))
+
+  def all: List[Problem] = List(
+    subaruResourcesNotOfferedCheck,
+    ResourceIssues.resourceNotOfferedCheck[GpiBlueprint](p, s, sem, "GPI".some)).flatten
+}
+
 case class Semester2020AProblems(p: Proposal, s: ShellAdvisor) {
-  private val semester2020A = Semester(2020, SemesterOption.A)
-
-  private val texesNotOfferedCheck = for {
-    o <- p.observations
-    b <- o.blueprint
-    if b.isInstanceOf[TexesBlueprint]
-    if p.semester == semester2020A
-  } yield new Problem(Severity.Error, "Texes is not offered for 2020A.", "Observations", s.inObsListView(o.band, _.Fixes.fixBlueprint(b)))
-
-  private val phoenixNotOfferedCheck = for {
-    o <- p.observations
-    b <- o.blueprint
-    if b.isInstanceOf[PhoenixBlueprint]
-    if p.semester == semester2020A
-  } yield new Problem(Severity.Error, "Phoenix is not offered for 2020A.", "Observations", s.inObsListView(o.band, _.Fixes.fixBlueprint(b)))
-
-  def all: List[Problem] = List(texesNotOfferedCheck, phoenixNotOfferedCheck).flatten
+  private val sem = Semester(2020, SemesterOption.A)
+  def all: List[Problem] = List(
+    ResourceIssues.resourceNotOfferedCheck[TexesBlueprint](p, s, sem),
+    ResourceIssues.resourceNotOfferedCheck[PhoenixBlueprint](p, s, sem)).flatten
 }
 
 case class TimeProblems(p: Proposal, s: ShellAdvisor) {
-  lazy val requested = p.proposalClass.requestedTime
-  def obsTimeSum(b: Band) = TimeAmount.sum(for {
+  lazy val requested: TimeAmount = p.proposalClass.requestedTime
+  def obsTimeSum(b: Band): TimeAmount = TimeAmount.sum(for {
     o <- p.nonEmptyObservations if o.band == b
     t <- o.totalTime
   } yield t)
-  lazy val obs = obsTimeSum(Band.BAND_1_2)
-  lazy val obsB3 = obsTimeSum(Band.BAND_3)
+  lazy val obs: TimeAmount = obsTimeSum(Band.BAND_1_2)
+  lazy val obsB3: TimeAmount = obsTimeSum(Band.BAND_3)
 
-  lazy val b3Req = p.proposalClass match {
+  lazy val b3Req: Option[SubmissionRequest] = p.proposalClass match {
     case q: QueueProposalClass => q.band3request
     case _ => None
   }
-  lazy val b3ReqOrZero = b3Req.map(_.time).getOrElse(TimeAmount.empty)
-  lazy val jointNotAllowed = {
-    def checkForNotAllowedJointProposals(subs: Option[List[NgoSubmission]]):List[Problem] = {
-      val r = for {
-          subs <- subs
-          if subs.size > 1
-        } yield for {
-            p <- subs.filter(s => Partners.jointProposalNotAllowed.contains(s.partner))
-          } yield new Problem(Severity.Error, s"${~Partners.name.get(p.partner)} cannot be part of a joint proposal, please update the time request.", SCHEDULING_SECTION,
-              s.showPartnersView())
-      r.sequence.flatten
-    }
+  lazy val b3ReqOrZero: TimeAmount = b3Req.map(_.time).getOrElse(TimeAmount.empty)
 
-    p.proposalClass match {
-      case p: GeminiNormalProposalClass => checkForNotAllowedJointProposals(p.subs.left.toOption)
-      case e: ExchangeProposalClass     => checkForNotAllowedJointProposals(e.subs.some)
-      case x                            => Nil
-    }
-  }
+  // REL-3829 - this is no longer needed but I have been advised that such things are often
+  //            resurrected so I'm leaving it here for now.
+  //
+  //  lazy val jointNotAllowed: List[Problem] = {
+  //    def checkForNotAllowedJointProposals(subs: Option[List[NgoSubmission]]):List[Problem] = {
+  //      val r = for {
+  //          subs <- subs
+  //          if subs.size > 1
+  //        } yield for {
+  //            p <- subs.filter(s => Partners.jointProposalNotAllowed.contains(s.partner))
+  //          } yield new Problem(Severity.Error, s"${~Partners.name.get(p.partner)} cannot be part of a joint proposal, please update the time request.", SCHEDULING_SECTION,
+  //              s.showPartnersView())
+  //      r.sequence.flatten
+  //    }
+  //
+  //    p.proposalClass match {
+  //      case p: GeminiNormalProposalClass => checkForNotAllowedJointProposals(p.subs.left.toOption)
+  //      case e: ExchangeProposalClass     => checkForNotAllowedJointProposals(e.subs.some)
+  //      case x                            => Nil
+  //    }
+  //  }
 
   private def when[A](b: Boolean)(a: => A) = b option a
 
@@ -785,10 +805,10 @@ case class TimeProblems(p: Proposal, s: ShellAdvisor) {
       })
     }
 
-  def requestedTimeDiffers = requestedTimeCheck(requested, obs, Band.BAND_1_2)
-  def requestedB3TimeDiffers = requestedTimeCheck(b3ReqOrZero, obsB3, Band.BAND_3)
+  def requestedTimeDiffers: Option[Problem] = requestedTimeCheck(requested, obs, Band.BAND_1_2)
+  def requestedB3TimeDiffers: Option[Problem] = requestedTimeCheck(b3ReqOrZero, obsB3, Band.BAND_3)
 
-  def noTimeRequest = when(requested.hours <= 0.0) {
+  def noTimeRequest: Option[Problem] = when(requested.hours <= 0.0) {
     new Problem(Severity.Todo, "Please specify a time request.", SCHEDULING_SECTION, s.showPartnersView())
   }
 
@@ -796,11 +816,11 @@ case class TimeProblems(p: Proposal, s: ShellAdvisor) {
     new Problem(sev, msg, SCHEDULING_SECTION, s.inPartnersView(_.editBand3Time()))
   }
 
-  def noBand3Time = b3Problem(_.time.hours <= 0.0, Severity.Todo, "Please enter the total requested time for a Band 3 allocation.")
-  def noMinBand3Time = b3Problem(r => r.time.hours > 0.0 && r.minTime.hours <= 0.0, Severity.Todo, "Please enter the minimum required time for a usable Band 3 allocation.")
-  def band3MinTime = b3Problem(r => r.time.hours < r.minTime.hours, Severity.Error, "The minimum Band 3 required time must not be longer than the total Band 3 requested time.")
+  def noBand3Time: Option[Problem] = b3Problem(_.time.hours <= 0.0, Severity.Todo, "Please enter the total requested time for a Band 3 allocation.")
+  def noMinBand3Time: Option[Problem] = b3Problem(r => r.time.hours > 0.0 && r.minTime.hours <= 0.0, Severity.Todo, "Please enter the minimum required time for a usable Band 3 allocation.")
+  def band3MinTime: Option[Problem] = b3Problem(r => r.time.hours < r.minTime.hours, Severity.Error, "The minimum Band 3 required time must not be longer than the total Band 3 requested time.")
 
-  def all = List(requestedTimeDiffers, requestedB3TimeDiffers, noTimeRequest, noBand3Time, noMinBand3Time, band3MinTime).flatten ++ jointNotAllowed
+  def all: List[Problem] = List(requestedTimeDiffers, requestedB3TimeDiffers, noTimeRequest, noBand3Time, noMinBand3Time, band3MinTime).flatten
 }
 
 
@@ -809,8 +829,8 @@ object TacProblems {
   val TAC_SECTION = "TAC"
   type Partner = Any
   // ugh
-  def tac = AppPreferences.current.mode == AppPreferences.PITMode.TAC
-  def name(p: Partner) = Partners.name.getOrElse(p, "<unknown>")
+  def tac: Boolean = AppPreferences.current.mode == AppPreferences.PITMode.TAC
+  def name(p: Partner): String = Partners.name.getOrElse(p, "<unknown>")
 
 }
 
@@ -818,8 +838,8 @@ case class TacProblems(proposal: Proposal, s: ShellAdvisor) {
 
   import TacProblems._
 
-  lazy val responses = TacView.responses(proposal.proposalClass)
-  lazy val accepts = responses.flatMap {
+  lazy val responses: Map[Partner, SubmissionResponse] = TacView.responses(proposal.proposalClass)
+  lazy val accepts: Map[Partner, SubmissionAccept] = responses.flatMap {
     case (p, r) =>
         r.decision.flatMap {
           case SubmissionDecision(Right(a)) => Some((p, a))
@@ -830,7 +850,7 @@ case class TacProblems(proposal: Proposal, s: ShellAdvisor) {
   def tacProblem(f: => Boolean, sev: Severity, msg: String, partner: Partner): Option[Problem] =
     Option(f).filter(_ == true).map(_ => new Problem(sev, msg, TAC_SECTION, s.showTacView(partner)))
 
-  def noResponses = Option(responses).filter(_.isEmpty).map(_ => new Problem(
+  def noResponses: Option[Problem] = Option(responses).filter(_.isEmpty).map(_ => new Problem(
     Severity.Error,
     "This proposal has no responses; TAC mode is not applicable.",
     TAC_SECTION,
