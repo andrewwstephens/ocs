@@ -15,6 +15,17 @@ import scalaz.std.anyVal._
 
 trait Arbitraries {
 
+  implicit val arbSemester: Arbitrary[Semester] =
+    Arbitrary {
+      for {
+        y <- Gen.chooseNum(2000, 2099)
+        h <- Gen.oneOf(Semester.Half.A, Semester.Half.B)
+      } yield new Semester(y, h)
+    }
+
+  implicit val arbRolloverPeriod: Arbitrary[RolloverPeriod] =
+    Arbitrary(arbitrary[Semester].map(RolloverPeriod.beginning))
+
   implicit val arbAngle: Arbitrary[Angle] =
     Arbitrary(arbitrary[Short].map(n => n / 10.0).map(Angle.fromDegrees))
 
@@ -90,7 +101,7 @@ trait Arbitraries {
     Arbitrary(Gen.choose[Double](-1, 50.0).suchThat(_ > -1).map(v => Redshift(v))) // Redshift must be more than -1 and usually never goes above 20
 
   implicit val arbParallax: Arbitrary[Parallax] =
-    Arbitrary(arbitrary[Double].map(Parallax.apply))
+    Arbitrary(arbitrary[Double].map(mas => Parallax.unsafeFromMas(mas.abs)))
 
   implicit val arbMagnitude: Arbitrary[Magnitude] =
     Arbitrary {

@@ -72,7 +72,7 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
       val ps =
         List(genderNotAnsweredCheck, noObs, nonUpdatedInvestigatorName, noPIPhoneNumber, invalidPIPhoneNumber, titleCheck, band3option, abstractCheck, categoryCheck,
           keywordCheck, attachmentCheck, attachmentValidityCheck, attachmentSizeCheck, missingObsDetailsCheck,
-          duplicateInvestigatorCheck, ftReviewerOrMentor, ftAffiliationMismatch, band3Obs).flatten ++
+          duplicateInvestigatorCheck, ftParticipatingPartner, ftReviewerOrMentor, ftAffiliationMismatch, band3Obs).flatten ++
           TimeProblems(p, s).all ++
           TimeProblems.noCFHClassical(p, s) ++
           TimeProblems.partnerZeroTimeRequest(p, s) ++
@@ -158,13 +158,13 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
     } yield new Problem(Severity.Error, msg, "Targets", s.inTargetsView(_.edit(t)))
 
     private lazy val emptyEphemerisCheck = for {
-      t @ NonSiderealTarget(_, n, e, _) <- p.targets
+      t @ NonSiderealTarget(_, n, e, _, _, _) <- p.targets
       if e.isEmpty
       msg = s"""Ephemeris for target "$n" is undefined."""
     } yield new Problem(Severity.Warning, msg, "Targets", s.inTargetsView(_.edit(t)))
 
     private lazy val singlePointEphemerisCheck = for {
-      t @ NonSiderealTarget(_, n, e, _) <- p.targets
+      t @ NonSiderealTarget(_, n, e, _, _, _) <- p.targets
       if e.size == 1
       msg = s"""Ephemeris for target "$n" contains only one point; please specify at least two."""
     } yield new Problem(Severity.Warning, msg, "Targets", s.inTargetsView(_.edit(t)))
@@ -172,7 +172,7 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
     lazy val dateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MMM-dd").withZone(ZoneId.of("UTC"))
 
     private lazy val initialEphemerisCheck = for {
-      t @ NonSiderealTarget(_, n, e, _) <- p.targets
+      t @ NonSiderealTarget(_, n, e, _, _, _) <- p.targets
       if e.nonEmpty
       ds = e.map(_.validAt) if ds.size > 1
       dsMin = ds.min
@@ -187,7 +187,7 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
     } yield new Problem(Severity.Warning, msg, "Targets", s.inTargetsView(_.edit(t)))
 
     private lazy val finalEphemerisCheck = for {
-      t @ NonSiderealTarget(_, n, e, _) <- p.targets
+      t @ NonSiderealTarget(_, n, e, _, _, _) <- p.targets
       if e.nonEmpty
       ds = e.map(_.validAt) if ds.size > 1
       dsMax = ds.max
@@ -593,6 +593,14 @@ class ProblemRobot(s: ShellAdvisor) extends Robot {
       })
     }
 
+    private lazy val ftParticipatingPartner = for {
+      FastTurnaroundProgramClass(_, _, _, _, _, _, _, _, Some(-\/(a))) <- Some(p.proposalClass)
+      if a == NgoPartner.CL
+    } yield new Problem(Severity.Error,
+      "The PI's partner affiliation is not participating in the fast turnaround process.", TimeProblems.SCHEDULING_SECTION, {
+        s.showPartnersView()
+      })
+
     private lazy val ftReviewerOrMentor = for {
         f @ FastTurnaroundProgramClass(_, _, _, _, _, _, r, m, _) <- Some(p.proposalClass)
         if r.isEmpty || (~r.map(_.status != InvestigatorStatus.PH_D) && m.isEmpty)
@@ -830,7 +838,11 @@ object TacProblems {
   type Partner = Any
   // ugh
   def tac: Boolean = AppPreferences.current.mode == AppPreferences.PITMode.TAC
-  def name(p: Partner): String = Partners.name.getOrElse(p, "<unknown>")
+  def name(p: Partner): String = p match {
+    case GuaranteedTimePartner => "Guaranteed time"
+    case LargeProgramPartner => "Large program"
+    case _ => Partners.name.getOrElse(p, "<unknown>")
+  }
 
 }
 

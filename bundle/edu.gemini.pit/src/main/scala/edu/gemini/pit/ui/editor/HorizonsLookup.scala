@@ -45,8 +45,8 @@ final class HorizonsLookup(editor: TargetEditor, site: Site, when: Long) {
       case Some(s) =>
         (HorizonsService2.search(s) <* hide).flatMap {
           case Nil     => handleNoResults
-          case List(r) => handleSingleResult(r)
-          case rs      => handleManyResults(rs)
+          case List(r) => handleSingleResult(query, r)
+          case rs      => handleManyResults(query, rs)
         }
     }
 
@@ -71,7 +71,7 @@ final class HorizonsLookup(editor: TargetEditor, site: Site, when: Long) {
     }
 
   /** Pop up a dialog for disambiguating many results. */
-  private def handleManyResults(rs: List[Row[_ <: HorizonsDesignation]]): HS2[Unit] =
+  private def handleManyResults(query: String, rs: List[Row[_ <: HorizonsDesignation]]): HS2[Unit] =
     HS2.delay {
       case class Wrapper(unwrap: Row[_ <: HorizonsDesignation]) {
         override def toString = unwrap.name + " - " + unwrap.a.des
@@ -87,15 +87,15 @@ final class HorizonsLookup(editor: TargetEditor, site: Site, when: Long) {
           null)
       }.map(_.asInstanceOf[Wrapper].unwrap)
     } flatMap {
-      case Some(r) => handleSingleResult(r)
+      case Some(r) => handleSingleResult(query, r)
       case None    => ().point[HS2]
     }
 
   /** One result! Replace the TargetEditor. */
-  private def handleSingleResult(r: Row[_ <: HorizonsDesignation]): HS2[Unit] =
+  private def handleSingleResult(query: String, r: Row[_ <: HorizonsDesignation]): HS2[Unit] =
     for {
       e <- fetchEphemeris(r.a)
-      t <- p1target(r.name, e)
+      t <- p1target(query, r.a.show, r.a.queryString, e)
       _ <- onEDT(editor.close(TargetEditor.Replace(t)))
     } yield ()
 
@@ -110,7 +110,7 @@ final class HorizonsLookup(editor: TargetEditor, site: Site, when: Long) {
         map(e => Ephemeris(site, e.data))
 
   /** Create a new phase 1 target from a name and phase-2 (!) ephemeris. */
-  def p1target(name: String, ephemeris: Ephemeris): HS2[NonSiderealTarget] =
+  def p1target(name: String, horizonsDesignation: String, horizonsQuery: String, ephemeris: Ephemeris): HS2[NonSiderealTarget] =
     HS2.delay {
       NonSiderealTarget(
         UUID.randomUUID, // side-effect, so need delay above
@@ -118,7 +118,9 @@ final class HorizonsLookup(editor: TargetEditor, site: Site, when: Long) {
         ephemeris.data.toAscList.map {
           case (t, cd) => EphemerisElement(cd, None, t) // no magnitude info
         },
-        CoordinatesEpoch.J_2000
+        CoordinatesEpoch.J_2000,
+        Some(horizonsDesignation),
+        Some(horizonsQuery)
       )
     }
 

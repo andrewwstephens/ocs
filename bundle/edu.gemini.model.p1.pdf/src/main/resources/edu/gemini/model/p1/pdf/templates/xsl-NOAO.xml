@@ -25,12 +25,24 @@
 
         <!-- submission entry of this-partner -->
         <xsl:variable name="this-partner-submission" select="proposalClass//ngo/partner[text()=$this-partner]/../response"/>
+        <xsl:variable name="ft-submission" select="proposalClass/fastTurnaround//response"/>
+        <xsl:variable name="lp-submission" select="proposalClass/large//response"/>
+        <xsl:variable name="sip-submission" select="proposalClass/sip//response"/>
 
         <!-- true proposal id -->
         <xsl:variable name="proposal-id">
             <xsl:choose>
                 <xsl:when test="$this-partner-submission/receipt/id">
                     <xsl:value-of select="$this-partner-submission/receipt/id"/>
+                </xsl:when>
+                <xsl:when test="$ft-submission/receipt/id">
+                    <xsl:value-of select="$ft-submission/receipt/id"/>
+                </xsl:when>
+                <xsl:when test="$lp-submission/receipt/id">
+                    <xsl:value-of select="$lp-submission/receipt/id"/>
+                </xsl:when>
+                <xsl:when test="$sip-submission/receipt/id">
+                    <xsl:value-of select="$sip-submission/receipt/id"/>
                 </xsl:when>
                 <xsl:otherwise>???-????/?</xsl:otherwise>
             </xsl:choose>
@@ -1506,7 +1518,14 @@
                                 <fo:block margin-left="1cm">
                                     Non-sidereal target (coordinates valid at:&#160;
                                     <xsl:variable name="date" select="$target/ephemeris/@validAt"/>
-                                    <xsl:value-of select="substring($date, 0, 11)"/>)
+                                    <xsl:value-of select="substring($date, 0, 11)"/>
+                                    <xsl:variable name="horizonsQuery" select="$target/@horizonsQuery"/>
+                                    <xsl:if test="$horizonsQuery != ''">
+                                        <fo:inline>
+                                            <xsl:text>; query: </xsl:text>
+                                            <xsl:value-of select="$horizonsQuery"/>
+                                        </fo:inline>
+                                    </xsl:if>)
                                 </fo:block>
                             </xsl:if>
 

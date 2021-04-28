@@ -7,9 +7,7 @@ import edu.gemini.pot.sp.ISPProgram;
 import edu.gemini.shared.util.immutable.Option;
 import edu.gemini.shared.util.TimeValue;
 import edu.gemini.skycalc.ObservingNight;
-import edu.gemini.spModel.core.ProgramType;
-import edu.gemini.spModel.core.SPProgramID;
-import edu.gemini.spModel.core.Site;
+import edu.gemini.spModel.core.*;
 import edu.gemini.spModel.gemini.obscomp.SPProgram;
 import edu.gemini.spModel.obs.InstrumentService;
 import edu.gemini.spModel.obs.ObsClassService;
@@ -35,7 +33,7 @@ public final class QueueProgramStatusExternalTable extends AbstractTable {
     private static final String DISPLAY_NAME = "Queue Program Status (External)";
     private static final String SHORT_DESCRIPTION = "Execution status by semester/band/program. Used in public report.";
 
-    public static enum Columns implements IColumn {
+    public enum Columns implements IColumn {
 
         SEMESTER("Semester", "%s"),
         BAND("Band", "%d"),
@@ -66,10 +64,6 @@ public final class QueueProgramStatusExternalTable extends AbstractTable {
             return String.format(Locale.getDefault(), format, value);
         }
 
-        public Comparator getComparator() {
-            return null;
-        }
-
     }
 
     public QueueProgramStatusExternalTable() {
@@ -89,7 +83,7 @@ public final class QueueProgramStatusExternalTable extends AbstractTable {
 
 
             // Get the semester
-            final String semester = ReportUtils.getSemester(id);
+            final Optional<Semester> semester = ReportUtils.getSemester(id);
 
             // Fetch the program itself.
             final SPProgram prog = (SPProgram) progShell.getDataObject();
@@ -126,7 +120,7 @@ public final class QueueProgramStatusExternalTable extends AbstractTable {
 
             // Done. Build the row and return it.
             final Map<IColumn, Object> row = new HashMap<>();
-            row.put(Columns.SEMESTER, semester);
+            row.put(Columns.SEMESTER, semester.map(Semester::format).orElse(null));
             row.put(Columns.BAND, band);
             row.put(Columns.PROGRAM_ID, id);
 			row.put(Columns.PI_LAST_NAME, prog.getPILastName());
@@ -141,16 +135,18 @@ public final class QueueProgramStatusExternalTable extends AbstractTable {
             return Collections.singletonList(row);
 	}
 
-	private static String getRollover(final String semester, final ISPProgram prog)  {
-		if (semester == null || !ReportUtils.isRollover(prog))
-			return null;
-		return getRollover(semester);
+	private static String getRollover(final Optional<Semester> semester, final ISPProgram prog)  {
+        return ReportUtils.isRollover(prog) ?
+                   semester.map(QueueProgramStatusExternalTable::getRollover).orElse(null) :
+                   null;
 	}
 
     // 2004A => [r05A]
-    private static String getRollover(final String semester) {
-        final int year = Integer.parseInt(semester.substring(0, 4));
-        return "[r" + Integer.toString(year + 1).substring(2) + semester.charAt(4) + "]";
+    private static String getRollover(final Semester semester) {
+        return String.format(
+                "[r%s]",
+                RolloverPeriod.beginning(semester).endSemester().toShortString()
+        );
     }
 
 	private Object getDates(final ISPProgram progShell)  {
