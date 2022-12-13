@@ -7,6 +7,7 @@ import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.XYPlot;
 //import org.jfree.chart.renderer.category.CategoryItemRenderer;
+import org.jfree.chart.renderer.xy.StandardXYItemRenderer;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
@@ -80,6 +81,7 @@ public final class ITCChart {
     public ITCChart(final SpcChartData s, final PlottingDetails plotParams) {
 
         chart = ChartFactory.createXYLineChart(s.title(), s.xAxis().label(), s.yAxis().label(), this.seriesData, PlotOrientation.VERTICAL, true, false, false);
+        //chart.getXYPlot().setRenderer(new StandardXYItemRenderer(StandardXYItemRenderer.LINES));
         chart.getLegend().setPosition(RectangleEdge.TOP);
         chart.setBackgroundPaint(Color.white);
 
@@ -151,6 +153,7 @@ public final class ITCChart {
         final XYItemRenderer renderer = chart.getXYPlot().getRenderer();
         renderer.setSeriesPaint(ix, color.isDefined() ? color.get() : colorByIndex(ix));
         renderer.setSeriesStroke(ix, new BasicStroke(2));
+        //renderer.
         if (!inLegend)
             renderer.setSeriesVisibleInLegend(ix, false);
     }

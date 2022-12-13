@@ -118,6 +118,8 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         final double backgroundResElementData   = backgroundResElement / backgroundFlux.getSampling();
         Log.fine("SED sampling:  source = " + sourceFlux.getSampling() + "nm, background = " + backgroundFlux.getSampling() + " nm");
 
+        Log.info("#######  resElement: " + resElement + " backgroundResElement: " + backgroundResElement + " resElementData: "+ resElementData + " backgroundResElementData: "+ backgroundResElementData);
+
         // use the int value of spectral_pix as a smoothing element (at least 1)
         final int smoothingElement              = (int) Math.max(1.0, Math.round(resElementData));
         final int backgroundSmoothingElement    = (int) Math.max(1.0, Math.round(backgroundResElementData));
@@ -161,6 +163,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
     /** Calculates single and final S2N. */
     private void calculateS2N() {
 
+        double[][] sourceVal = sourceFlux.getData();
         // shot noise on dark current flux in aperture
         final double darkNoise = darkCurrent * slit.lengthPixels() * exposureTime;  // per spectral pixel
         Log.fine("Dark noise = " + darkCurrent + " * "  + slit.lengthPixels() + " pix long slit * " + exposureTime + " sec = " + darkNoise);
@@ -169,9 +172,13 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         final double readNoise = this.readNoise * this.readNoise * slit.lengthPixels();  // per spectral pixel
         Log.fine("Read noise = " + this.readNoise + "^2 * "  + slit.lengthPixels() + " pix long slit = " + readNoise);
 
+        Log.info("haloIsUsed: " + haloIsUsed);
         // signal and background for given slit and throughput
         final VisitableSampledSpectrum signal     = haloIsUsed ? signalWithHalo(throughput.throughput(), haloThroughput.throughput()) : signal(throughput.throughput());
         final VisitableSampledSpectrum background = background(slit);
+
+        double[][] data = background.getData();
+        double[][] data2 = signal.getData();
 
         // -- calculate and assign s2n results
 
@@ -180,6 +187,17 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
 
         // final S2N for all exposures
         resultS2NFinal = finalS2N(signal, background, darkNoise, readNoise);
+
+        /*
+        double[][] data3 = resultS2NSingle.getData();
+        double[][] data4 = resultS2NFinal.getData();
+        System.out.println("**** background    signal  S2Nsingle    S2NFinal  initialFlux **** ");
+        for (int i = 0; i < data[0].length; i++) {
+            if (data[0][i] > 480 && data[0][i] < 520)
+                System.out.println(data[0][i] + " -> " + data[1][i] + ";  "+ data2[1][i] +";  " + data3[1][i]
+                                   + ";  " + data4[1][i] + ";  " + sourceVal[1][i]);
+        }
+        */
     }
 
     /** Calculates signal and background per coadd. */
@@ -211,6 +229,8 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         final int lastPixel = lastCcdPixel(signal.getLength());
         Log.fine("Calculating signal with " + throughput + " throughput on detector pixels " + firstCcdPixel + " - " + lastPixel);
 
+
+        Log.fine("Disperser is: "+ disperser.dispersion());
         for (int i = 0; i < signal.getLength(); ++i) { signal.setY(i, 0); } // zero data array before use per REL-2992
 
         for (int i = firstCcdPixel; i <= lastPixel; ++i) {
@@ -253,7 +273,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
             background.setY(i,
                     backgroundFlux.getY(i) *
                             slit.width() * slit.pixelSize() * slit.lengthPixels() *
-                            exposureTime * disperser.dispersion());
+                            exposureTime * disperser.dispersion());  // Use the grating dispersion. The data is gotten from grating file for each instrument.
         }
 
         return background;
