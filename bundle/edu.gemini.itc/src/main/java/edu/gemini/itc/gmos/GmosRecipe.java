@@ -215,6 +215,7 @@ public final class GmosRecipe implements ImagingArrayRecipe, SpectroscopyArrayRe
             // However, the distance between fibers on the detector in the spatial direction is ~ 5 pix.
             final double slitLength = numfibers * 5.0 / instrument.getSpatialBinning();
             Log.fine("IFU slit length = " + numfibers + " fibers = " + slitLength + " pixels");
+            Log.fine("Pixel size = " + instrument.getPixelSize() + " arcsec");
             final Slit slit = Slit$.MODULE$.apply(instrument.getSlitWidth(), slitLength, instrument.getPixelSize());
 
             double shift = 0;

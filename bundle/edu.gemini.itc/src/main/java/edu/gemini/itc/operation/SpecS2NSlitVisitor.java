@@ -84,6 +84,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         this.sourceFraction  = calcMethod.sourceFraction();
         this.exposureTime    = calcMethod.exposureTime();
 
+        Log.fine("pixel size = " + slit.pixelSize() + " arcsec");
     }
 
     // Return index of last CCD pixel, if defined and in range
@@ -203,6 +204,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
     /** Calculates signal and background per coadd. */
     private void calculateSignal() {
         Log.fine("Calculating signal and background in a 1-pixel aperture.");
+        Log.fine("slit.pixelSize = " + slit.pixelSize());
 
         // total source flux in the aperture
         final VisitableSampledSpectrum signal = haloIsUsed ? signalWithHalo(throughput.onePixelThroughput(), haloThroughput.onePixelThroughput()) : signal(throughput.onePixelThroughput());
