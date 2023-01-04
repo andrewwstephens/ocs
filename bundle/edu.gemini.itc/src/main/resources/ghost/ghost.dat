@@ -5,8 +5,7 @@ GHOST
 #Ending wavelength (nm)
 1000
 #Sampling (nm)
-#0.005
-0.01
+0.02
 #Background filename
 ghost_background.dat
 #Plate Scale 1.64 (arcsec/mm) --> 0.02459 arcsec/pix

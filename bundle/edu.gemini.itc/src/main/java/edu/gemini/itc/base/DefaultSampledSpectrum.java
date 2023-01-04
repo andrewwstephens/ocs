@@ -1,5 +1,7 @@
 package edu.gemini.itc.base;
 
+import java.util.logging.Logger;
+
 /**
  * Default implementation of SampledSpectrum interface.
  * This implementation internally has a uniformly-spaced data points.
@@ -20,11 +22,10 @@ package edu.gemini.itc.base;
  * DefaultSampledSpectrum plays the role of a Concrete Element.
  */
 public class DefaultSampledSpectrum implements VisitableSampledSpectrum {
-    private double[] _y; //Array containing flux values in relative units
-
-    //Values of start and end points
-    private double _xStart, _xEnd;
-    private double _xInterval;     //Size of each particular element
+    private double[] _y;            // Array containing flux values in relative units
+    private double _xStart, _xEnd;  // Values of start and end points
+    private double _xInterval;      // Size of each particular element
+    private static final Logger Log = Logger.getLogger(DefaultSampledSpectrum.class.getName());
 
     /**
      * Construct a DefaultSampledSpectrum.  End x value is determined by
@@ -334,31 +335,39 @@ public class DefaultSampledSpectrum implements VisitableSampledSpectrum {
         assert x_start >= getStart() && x_start <= getEnd();
         assert x_end   >= getStart() && x_end   <= getEnd();
 
-        // Add up trapezoid areas.
-        // x1 and x2 may not be exactly on sampling points so do
-        // first and last trapezoid separately.
         double area = 0.0;
         int start_index, end_index;
-        double delta_x, y1, y2, x1, x2;
+        double y1, y2, x1, x2;
 
-        x1 = x_start;
-        start_index = getLowerIndex(x1);
-        start_index++;  // right side of first trapezoid
-        x2 = getX(start_index);
-        y1 = getY(x1);
-        y2 = getY(start_index);
-        delta_x = x2 - x1;
-        area += delta_x * (y1 + y2) / 2.0;
+        // x_start and x_end may not fall exactly on the underlying sampling grid.
 
-        x2 = x_end;
-        end_index = getLowerIndex(x2);
-        x1 = getX(end_index);
-        y2 = getY(x2);
-        y1 = getY(end_index);
-        delta_x = x2 - x1;
-        area += delta_x * (y1 + y2) / 2.0;
+        // If both x_start and x_end fall in the same sample grid just interpolate:
+        if (getLowerIndex(x_start) == getLowerIndex(x_end)) {
+            area += (x_end - x_start) * (getY(x_start) + getY(x_end)) / 2.0;
 
-        area += getIntegral(start_index, end_index);
+        } else {
+            // Add up the area on either side of the sample grid and then add that to the area inside the grid.
+
+            // calculate the area between x_start and the first sample point
+            x1 = x_start;
+            start_index = getLowerIndex(x1);
+            start_index++;  // right side of first trapezoid
+            x2 = getX(start_index);
+            y1 = getY(x1);
+            y2 = getY(start_index);
+            area += (x2 - x1) * (y1 + y2) / 2.0;
+
+            // calculate the area between the last sample point and x_end:
+            x2 = x_end;
+            end_index = getLowerIndex(x2);  // left side of last trapezoid
+            x1 = getX(end_index);
+            y2 = getY(x2);
+            y1 = getY(end_index);
+            area += (x2 - x1) * (y1 + y2) / 2.0;
+
+            // add to the area inside the grid:
+            area += getIntegral(start_index, end_index);
+        }
 
         return area;
     }
@@ -368,9 +377,9 @@ public class DefaultSampledSpectrum implements VisitableSampledSpectrum {
      * specified range between specified indices.
      */
     private double getIntegral(int start_index, int end_index) {
-        assert start_index <= end_index;
-        assert start_index >= 0 && start_index < getLength();
-        assert end_index   >= 0 && end_index   < getLength();
+        assert start_index <= end_index: "start index > end index";
+        assert start_index >= 0 && start_index < getLength(): "start_index out of range";
+        assert end_index   >= 0 && end_index   < getLength(): "end_index out of range";
 
         if (start_index == end_index) {
             return 0.0; // REL-478

@@ -2,6 +2,7 @@ package edu.gemini.itc.operation;
 
 import edu.gemini.itc.base.SampledSpectrum;
 import edu.gemini.itc.base.SampledSpectrumVisitor;
+import java.util.logging.Logger;
 
 /**
  * A resampling operation can move the start or end of the spectrum
@@ -14,18 +15,17 @@ import edu.gemini.itc.base.SampledSpectrumVisitor;
  * quoting from Phil's demo ITC document.
  */
 public class ResampleWithPaddingVisitor implements SampledSpectrumVisitor {
-    private double _start;     // starting wavelength
+    private double _start;     // starting
     private double _end;       // ending wavelength
     private double _sampling;  // wavelength sampling interval
     private double _padding;
+    private static final Logger Log = Logger.getLogger(ResampleWithPaddingVisitor.class.getName());
 
-    public ResampleWithPaddingVisitor(double start, double end, double sampling,
-                                      double padding) {
+    public ResampleWithPaddingVisitor(double start, double end, double sampling, double padding) {
         _start = start;
         _end = end;
         _sampling = sampling;
         _padding = padding;
-
     }
 
     /**
@@ -61,22 +61,24 @@ public class ResampleWithPaddingVisitor implements SampledSpectrumVisitor {
      */
     public void visit(SampledSpectrum sed) {
 
+        Log.fine("Input SED: " + sed.getStart() + " - " + sed.getEnd() + " with sampling " + sed.getSampling());
+        Log.fine("Resampled SED: " + getStart() + " - " + getEnd() + " with sampling " + getSampling());
+
         int num_elements = (int) ((getEnd() - getStart()) / getSampling());//+ 1;
 
         // Sed is going to get a new array
         double[] data = new double[num_elements];
 
-        // If No padding is needed revert back to the old code for
-        // resample visitor.
+        // If No padding is needed revert to the old code for resample visitor.
+
         if ((sed.getStart() <= getStart()) && (sed.getEnd() >= getEnd())) {
+            Log.fine("No padding required.");
             int startIndex = sed.getLowerIndex(getStart());
 
-            if (sed.getSampling() == getSampling() &&
-                    sed.getX(startIndex) == getStart()) {
-                // SED already has proper sampling interval and an interval starts
-                // exactly on getStart().
+            if (sed.getSampling() == getSampling() && sed.getX(startIndex) == getStart()) {
+                // SED already has proper sampling interval and an interval starts exactly on getStart().
                 // Avoid interpolation and just copy array values.
-                //System.out.println("resampling is copy operation" );
+                Log.fine("Resampling is copy operation");
                 for (int i = 0; i < num_elements; i++) {
                     data[i] = sed.getY(i + startIndex);
                 }
@@ -86,15 +88,21 @@ public class ResampleWithPaddingVisitor implements SampledSpectrumVisitor {
                 //System.out.println("resampling requires interpolation" );
                 for (int i = 1; i < num_elements; i++) {
                     // interpolate new values
-                    //data[i] = sed.getY(getStart() + i * getSampling());
-                    //data[i] = sed.getSum(getStart() + i * getSampling(), getStart() + i * getSampling()+ getSampling())/(getSampling()/sed.getSampling()+1);
-                    data[i] = sed.getAverage(getStart() + i * getSampling() - getSampling(), getStart() + i * getSampling() + getSampling());
-                    //System.out.println("point:" + sed.getY(getStart() + i * getSampling())+ "next: "+ sed.getY(getStart() + i * getSampling()+ getSampling()) + "INT: " + data[i]);
+                    // data[i] = sed.getY(getStart() + i * getSampling());
+                    // data[i] = sed.getSum(getStart() + i * getSampling(), getStart() + i * getSampling()+ getSampling())/(getSampling()/sed.getSampling()+1);
+                    // data[i] = sed.getAverage(getStart() + i * getSampling() - getSampling(), getStart() + i * getSampling() + getSampling());
+
+                    // Should the average be from (λ0 + i * dλ - dλ/2)  to  (λ0 + i * dλ + dλ/2) ?
+                    data[i] = sed.getAverage(getStart() + i * getSampling() - getSampling()/2.0, getStart() + i * getSampling() + getSampling()/2.0);
+
+                    // System.out.println("point:" + sed.getY(getStart() + i * getSampling())+ "next: "+ sed.getY(getStart() + i * getSampling()+ getSampling()) + "INT: " + data[i]);
 
                 }
 
             }
+
         } else {
+            Log.fine("Padding required.");
 
             for (int i = 1; i < num_elements; i++) {
                 // if in the range of the sed use those vals
