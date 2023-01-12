@@ -19,6 +19,9 @@ import edu.gemini.spModel.core.PowerLaw;
 import edu.gemini.spModel.core.Site;
 import edu.gemini.spModel.core.UserDefinedSpectrum;
 import edu.gemini.spModel.core.Wavelength;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.sql.Timestamp;
 import scala.Option;
 
 /**
@@ -187,6 +190,24 @@ public final class SEDFactory {
         return calculate(instrument, sdp, odp, tp, Option.apply((AOSystem) null));
     }
 
+    public static void writeSed(VisitableSampledSpectrum sed, String filename) {
+        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+        String fname = "/tmp/" + filename + "_" + timestamp.toString().replace(' ', '_') + ".dat";
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter(fname));
+            double[][] data = sed.getData();
+            for (int i = 0; i < data[0].length; i++) {
+                if (data[0][i] < 1200)
+                   writer.append(data[0][i] + "\t" + data[1][i] + "\n");
+            }
+            writer.close();
+            System.out.println("Wrote " + fname);
+        } catch (Exception e) {
+            System.out.println("Error writing " + fname);
+        }
+    }
+
+
     public static SourceResult calculate(final Instrument instrument, final SourceDefinition sdp, final ObservingConditions odp, final TelescopeDetails tp, final Option<AOSystem> ao) {
         // Module 1b
         // Define the source energy (as function of wavelength).
@@ -242,8 +263,12 @@ public final class SEDFactory {
             sed.accept(norm);
         }
 
+        writeSed(sed, "sed_1");  // photons / s / nm / m^2  (x 1e-5 to get ph/s/A/cm^2)
+
         final SampledSpectrumVisitor tel = new TelescopeApertureVisitor();
         sed.accept(tel);
+
+        writeSed(sed, "sed_2");  // photons / s / nm  (x 0.1 to get ph/s/A)
 
         // SED is now in units of photons/s/nm
 
@@ -251,7 +276,7 @@ public final class SEDFactory {
         // The atmosphere and telescope modify the spectrum and
         // produce a background spectrum.
         //
-        // inputs: SED, AIRMASS, sky emmision file, mirror configuration,
+        // inputs: SED, AIRMASS, sky emission file, mirror configuration,
         // output: SED and sky background as they arrive at instruments
 
         final SampledSpectrumVisitor clouds = CloudTransmissionVisitor.create(odp.javaCc());
@@ -273,6 +298,8 @@ public final class SEDFactory {
         final SampledSpectrumVisitor t = TelescopeTransmissionVisitor.create(tp);
         sed.accept(t);
         sky.accept(t);
+
+        writeSed(sed, "sed_3"); // photons / s / nm  (x 0.1 to get ph/s/A)
 
         // Create and Add background for the telescope.
         final SampledSpectrumVisitor tb = new TelescopeBackgroundVisitor(instrument, tp);

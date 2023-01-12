@@ -41,10 +41,8 @@ public final class Ghost extends Instrument implements BinningProvider, Spectros
     private static final double AD_SATURATION = 65535;
 
     protected Ghost[] _instruments;
-
     protected final GhostParameters gp;
     protected final ObservationDetails odp;
-
     protected GhostGratingOptics _gratingOptics;
     protected Detector _detector;
     protected double _sampling;
@@ -56,20 +54,15 @@ public final class Ghost extends Instrument implements BinningProvider, Spectros
       but not any aperture losses
      */
     protected TransmissionElement _cableThrougthput;
-
     protected TransmissionElement _fixedOptics;
-
     protected TransmissionElement _resolutionElement;
 
     private static final String[] DETECTOR_CCD_NAMES = {"BLUE", "RED"};
-
     private static final String FILENAME = "ghost" + getSuffix();
 
     // These are the limits of observable wavelength with this configuration.
 
-    private GhostType.DetectorManufacturer _ccd;
-
-
+    //private GhostType.DetectorManufacturer _ccd;
     private GhostType.DetectorManufacturer _ccdColor;
 
     private GhostSaturLimitRule _ghostSaturLimitWarning;  // GHOST-specific saturation limit warning
@@ -77,7 +70,9 @@ public final class Ghost extends Instrument implements BinningProvider, Spectros
     public Ghost(final GhostParameters gp, final ObservationDetails odp, final GhostType.DetectorManufacturer ccdColor) {
         super(Site.GS, Bands.VISIBLE, INSTR_DIR, FILENAME);
 
-        Log.info("###### New ghost resolution: "+gp.resolution() + " ccd_color: "+ ccdColor.displayValue() +  " ##### ");
+        Log.info("============== New GHOST =======================");
+        Log.info("ccd_color: " + ccdColor.displayValue());
+        Log.info("Resolution: " + gp.resolution());
         this.odp    = odp;
         this.gp     = gp;
 
@@ -86,26 +81,33 @@ public final class Ghost extends Instrument implements BinningProvider, Spectros
 
         _detector.setDetectorPixels(_ccdColor.getXsize());
         addComponent(_detector);
+
         _cableThrougthput = new TransmissionElement(getDirectory()+"/"+ Ghost.INSTR_PREFIX + "cable" +getSuffix());
         _cableThrougthput.setDescription("GHOST Cass unit and science cable");
         addComponent(_cableThrougthput);
+
         _fixedOptics = new TransmissionElement(getDirectory()+"/" + Ghost.INSTR_PREFIX + "fixedOptics"+getSuffix());
         _fixedOptics.setDescription("Fix Optics");
         addComponent(_fixedOptics);
+
         _blazeThrougthput = new TransmissionElement(getDirectory()+"/" + Ghost.INSTR_PREFIX + "blaze"+getSuffix());
         _blazeThrougthput.setDescription("Echelle Blaze function for individuals orders");
         addComponent(_blazeThrougthput);
+
         Log.info("*********** Directory "+ getDirectory() + "/ghost_" + gp.resolution().get_displayValue() + Instrument.getSuffix());
-        _gratingOptics = new GhostGratingOptics(getDirectory() + "/" +Ghost.INSTR_PREFIX, gp.resolution().get_displayValue() + "_dispersion", "gratings",
-                                                gp.centralWavelength().toNanometers(), _detector.getDetectorPixels(), gp.spectralBinning().getValue());
+        _gratingOptics = new GhostGratingOptics(
+                getDirectory() + "/" +Ghost.INSTR_PREFIX,
+                gp.resolution().get_displayValue() + "_dispersion",
+                "gratings",
+                gp.centralWavelength().toNanometers(), _detector.getDetectorPixels(), gp.spectralBinning().getValue());
         _gratingOptics.setDescription("Grating Resolution");
         addDisperser(_gratingOptics);
         _sampling = super.getSampling();
 
         _ifuTrans = new IFU_Trans(gp.resolution());
-
         _ifu = new IFUComponent(gp.resolution());
         addComponent(_ifu);
+
         _resolutionElement = new TransmissionElement (getDirectory()+"/" + Ghost.INSTR_PREFIX + "resElement_"+ gp.resolution().get_displayValue() +getSuffix());
         addComponent(_resolutionElement);
 
@@ -115,7 +117,6 @@ public final class Ghost extends Instrument implements BinningProvider, Spectros
     public GhostType.DetectorManufacturer getDetManufacture() {
         return _ccdColor;
     }
-
 
 
 
