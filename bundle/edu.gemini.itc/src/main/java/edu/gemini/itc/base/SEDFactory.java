@@ -21,6 +21,10 @@ import edu.gemini.spModel.core.UserDefinedSpectrum;
 import edu.gemini.spModel.core.Wavelength;
 import scala.Option;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.sql.Timestamp;
+
 /**
  * This class encapsulates the process of creating a Spectral Energy
  * Distribution (SED).  (e.g. from a data file)
@@ -187,6 +191,24 @@ public final class SEDFactory {
         return calculate(instrument, sdp, odp, tp, Option.apply((AOSystem) null));
     }
 
+    public static void creatingFile(double sampling,  VisitableSampledSpectrum sed, String fName) {
+        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+        String fileName = fName + "_"+ sampling + "_" + timestamp.toString().replace(' ', '_') +".dat";
+
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter(fileName));
+            double[][] data = sed.getData();
+            for (int i = 0; i < data[0].length; i++) {
+                if (data[0][i] < 1200)
+                   writer.append(data[0][i] + "\t" + data[1][i] + "\n");
+            }
+            writer.close();
+            System.out.println("File created " + fileName);
+        } catch (Exception e) {
+            System.out.println("Error creating the file " + fName);
+        }
+    }
+
     public static SourceResult calculate(final Instrument instrument, final SourceDefinition sdp, final ObservingConditions odp, final TelescopeDetails tp, final Option<AOSystem> ao) {
         // Module 1b
         // Define the source energy (as function of wavelength).
@@ -196,9 +218,11 @@ public final class SEDFactory {
         // output: redshifted SED
 
         final VisitableSampledSpectrum sed = SEDFactory.getSED(sdp, instrument);
+
+        //creatingFile(instrument.getSampling(),  sed, "initialSignal.dat");
         final SampledSpectrumVisitor redshift = new RedshiftVisitor(sdp.redshift());
         sed.accept(redshift);
-
+        //creatingFile(instrument.getSampling(),  sed, "signalRedshift.dat");
         // Must check to see if the redshift has moved the spectrum beyond
         // useful range. The shifted spectrum must completely overlap
         // both the normalization waveband and the observation waveband
@@ -216,6 +240,8 @@ public final class SEDFactory {
                         sed.getStart(), sed.getEnd(), instrument.getObservingStart(), instrument.getObservingEnd()));
             }
         }
+
+        //System.out.println("sed-Start: " + sed.getStart() + " sedEnd: " + sed.getEnd() + " instrStart " + instrument.getObservingStart() + " inst-end: " + instrument.getObservingEnd());
 
         // any sed except BBODY and ELINE have normalization regions
         if (!(sdp.distribution() instanceof EmissionLine) && !(sdp.distribution() instanceof BlackBody)) {
@@ -240,9 +266,11 @@ public final class SEDFactory {
             sed.accept(norm);
         }
 
+        //creatingFile(instrument.getSampling(),  sed, "signalWithoutAperture.dat");
         final SampledSpectrumVisitor tel = new TelescopeApertureVisitor();
         sed.accept(tel);
 
+        //creatingFile(instrument.getSampling(),  sed, "signalWithAperture.dat");
         // SED is now in units of photons/s/nm
 
         // Module 3b
@@ -260,6 +288,7 @@ public final class SEDFactory {
                 odp.wv(),
                 odp.airmass(),
                 getWater(instrument));
+
         sed.accept(water);
 
         // Background spectrum is introduced here.
@@ -305,12 +334,30 @@ public final class SEDFactory {
         // background spectra.
         // input: instrument, source and background SED
         // output: total flux of source and background.
+
+        //double[][] data = sed.getData();
+
+        //creatingFile(instrument.getSampling(),  sed, "signalBeforeConv.dat");
         if (!(instrument instanceof Gsaoi) && !(instrument instanceof Niri) && !(instrument instanceof Gnirs)) {
             // TODO: for any instrument other than GSAOI and NIRI convolve here, why?
             instrument.convolveComponents(sed);
         }
-        instrument.convolveComponents(sky);
+        //creatingFile(instrument.getSampling(),  sed, "signalConv.dat");
 
+        /*double[][] data2 = sed.getData();
+        System.out.println("**** sed   beforeConvolveEleemnt   afterConvolveElement **** ");
+        for (int i = 0; i < data[0].length; i++) {
+            if (data[0][i] > 500 && data[0][i] < 510)
+                System.out.println(data[0][i] + " -> " + data[1][i] + ";  "+ data2[1][i] );
+        }
+
+        System.out.println("******************************************************** ");
+
+         */
+
+        //creatingFile(instrument.getSampling(),  sky, "skyBconv");
+        instrument.convolveComponents(sky);
+        //creatingFile(instrument.getSampling(),  sky, "skyConv");
         // TODO: AO (FOR NIFS DONE AT THE VERY END, WHY DIFFERENT FROM GSAOI/NIRI?)
         if (instrument instanceof Nifs && ao.isDefined()) {
             halo = Option.apply(SEDFactory.applyAoSystem(ao.get(), sky, sed));

@@ -1,10 +1,8 @@
 package edu.gemini.itc.operation;
 
 import java.util.logging.Logger;
-import edu.gemini.itc.base.Disperser;
-import edu.gemini.itc.base.SampledSpectrum;
-import edu.gemini.itc.base.SampledSpectrumVisitor;
-import edu.gemini.itc.base.VisitableSampledSpectrum;
+
+import edu.gemini.itc.base.*;
 import edu.gemini.itc.shared.*;
 
 /**
@@ -196,6 +194,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
     /** Calculates single and final S2N. */
     private void calculateS2N() {
 
+        double[][] sourceVal = sourceFlux.getData();
         // shot noise on dark current flux in aperture
         final double darkNoise = darkCurrent * output_slit.lengthPixels() * exposureTime;  // per spectral pixel
         Log.fine("Dark noise = " + darkCurrent + " * "  + output_slit.lengthPixels() + " pix long slit * " + exposureTime + " sec = " + darkNoise);
@@ -207,14 +206,31 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         // signal and background for given slit and throughput
         final VisitableSampledSpectrum signal     = haloIsUsed ? signalWithHalo(throughput.throughput(), haloThroughput.throughput()) : signal(throughput.throughput());
         final VisitableSampledSpectrum background = background(input_slit);
+        //SEDFactory.creatingFile(signal.getSampling(),  signal, "signal");
+        //SEDFactory.creatingFile(background.getSampling(),  background, "backgroundS2N");
+
 
         // -- calculate and assign s2n results
 
         // S2N for one exposure
         resultS2NSingle = singleS2N(signal, background, darkNoise, readNoise);
+        //SEDFactory.creatingFile(resultS2NSingle.getSampling(),  resultS2NSingle, "resultS2NSingle");
+
 
         // final S2N for all exposures
         resultS2NFinal = finalS2N(signal, background, darkNoise, readNoise);
+        //SEDFactory.creatingFile(resultS2NFinal.getSampling(),  resultS2NFinal, "resultS2NFinal");
+
+        /*
+        double[][] data3 = resultS2NSingle.getData();
+        double[][] data4 = resultS2NFinal.getData();
+        System.out.println("**** background    signal  S2Nsingle    S2NFinal  initialFlux **** ");
+        for (int i = 0; i < data[0].length; i++) {
+            if (data[0][i] > 480 && data[0][i] < 520)
+                System.out.println(data[0][i] + " -> " + data[1][i] + ";  "+ data2[1][i] +";  " + data3[1][i]
+                                   + ";  " + data4[1][i] + ";  " + sourceVal[1][i]);
+        }
+        */
     }
 
     /** Calculates signal and background per coadd. */
@@ -230,6 +246,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         //final VisitableSampledSpectrum signal = haloIsUsed ? signalWithHalo(throughput.throughput(), haloThroughput.throughput()) : signal(throughput.throughput());
         //final VisitableSampledSpectrum sqrtBackground = background(slit);
 
+        //SEDFactory.creatingFile(sqrtBackground.getSampling(),  sqrtBackground, "sqrtBackground");
         // create the Sqrt(Background) sed for plotting
         for (int i = firstCcdPixel; i <= lastCcdPixel(sqrtBackground.getLength()); ++i)
             sqrtBackground.setY(i, Math.sqrt(sqrtBackground.getY(i)));
@@ -246,10 +263,13 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         final int lastPixel = lastCcdPixel(signal.getLength());
         Log.fine("Calculating signal with " + throughput + " throughput on detector pixels " + firstCcdPixel + " - " + lastPixel);
 
+
+        Log.fine("Disperser is: "+ disperser.dispersion((signal.getStart() + signal.getEnd())/2 ));
         for (int i = 0; i < signal.getLength(); ++i) { signal.setY(i, 0); } // zero data array before use per REL-2992
 
+        // ANDY - what is going on here?  (the final sourceFlux.getX(i) is new
         for (int i = firstCcdPixel; i <= lastPixel; ++i) {
-            signal.setY(i, totalFlux(sourceFlux.getY(i), throughput));
+            signal.setY(i, totalFlux(sourceFlux.getY(i), throughput, sourceFlux.getX(i)));
         }
 
         return signal;
@@ -264,8 +284,10 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
 
         for (int i = 0; i < signal.getLength(); ++i) { signal.setY(i, 0); }
 
+        // ANDY - what is going on here?  totalFlux changed from a 1D to a 2D array.
         for (int i = firstCcdPixel; i <= lastPixel; ++i) {
-            signal.setY(i, totalFlux(sourceFlux.getY(i), throughput) + totalFlux(haloFlux.getY(i), haloThroughput));
+            //System.out.println("signalWithHalo X: "+ sourceFlux.getX(i) + " Y: "+ sourceFlux.getY(i) + " i: "+ i);
+            signal.setY(i, totalFlux(sourceFlux.getY(i), throughput, sourceFlux.getX(i)) + totalFlux(haloFlux.getY(i), haloThroughput, haloFlux.getX(i)));
         }
 
         return signal;
@@ -285,10 +307,13 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
 
         //Shot noise on background flux in aperture
         for (int i = firstCcdPixel; i <= lastPixel; ++i) {
+            double tmp = backgroundFlux.getY(i);
+            //double disp = disperser.dispersion(backgroundFlux.getX(i));
             background.setY(i,
                     backgroundFlux.getY(i) *
                             slit.width() * slit.pixelSize() * slit.lengthPixels() *
-                            exposureTime * disperser.dispersion());
+                            exposureTime * disperser.dispersion(backgroundFlux.getX(i)));  // Use the grating dispersion. The data is gotten from grating file for each instrument.
+                            //exposureTime * disp);  // Use the grating dispersion. The data is gotten from grating file for each instrument.
         }
 
         return background;
@@ -350,8 +375,11 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         return finalS2N;
     }
 
-    private double totalFlux(final double flux, final double throughput) {
-        return flux * throughput * exposureTime * disperser.dispersion();
+    private double totalFlux(final double flux, final double throughput, final double wv) {
+        //double disp = disperser.dispersion(wv);
+        //System.out.println("disp: " + disp);
+        return flux * throughput * exposureTime * disperser.dispersion(wv);
+        //return flux * throughput * exposureTime * disp;
     }
 
 
