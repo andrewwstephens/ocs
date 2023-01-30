@@ -142,47 +142,56 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
     private void resample() {
 
         // calc the width of a spectral resolution element in nm
-        final double resElement                 = disperser.resolution(output_slit, imgQuality);
-        final double backgroundResElement       = disperser.resolution(output_slit);
-        Log.fine("Spectral resolution:  source = " + resElement + "nm, background = " + backgroundResElement + " nm");
+        final double resElement           = disperser.resolution(output_slit, imgQuality);
+        final double backgroundResElement = disperser.resolution(output_slit);
+        Log.fine(String.format("Spectral resolution of instrument:  source = %.7f nm, background = %.7f nm", resElement, backgroundResElement));
 
         // and the data size in the spectral domain
         final double resElementData             = resElement / sourceFlux.getSampling();
         final double backgroundResElementData   = backgroundResElement / backgroundFlux.getSampling();
-        Log.fine("SED sampling:  source = " + sourceFlux.getSampling() + "nm, background = " + backgroundFlux.getSampling() + " nm");
+        Log.fine("Sampling of input SEDs:  source = " + sourceFlux.getSampling() + "nm, background = " + backgroundFlux.getSampling() + " nm");
+
 
         // use the int value of spectral_pix as a smoothing element (at least 1)
-        final int smoothingElement              = (int) Math.max(1.0, Math.round(resElementData));
-        final int backgroundSmoothingElement    = (int) Math.max(1.0, Math.round(backgroundResElementData));
+        final int smoothingElement           = (int) Math.max(1.0, Math.round(resElementData));
+        final int backgroundSmoothingElement = (int) Math.max(1.0, Math.round(backgroundResElementData));
         ///////////////////////////////////////////////////////////////////////////////////////
         //  We Don't know why but using just the smoothing element is not enough to create the resolution
         //     that we expect.  Using a smoothing element of  = smoothingElement + 1
         //     May need to take this out in the future.
         ///////////////////////////////////////////////////////////////////////////////////////
-        Log.fine("Smoothing:  source = " + (smoothingElement + 1) + ", background = " + (backgroundSmoothingElement + 1));
-        sourceFlux.smoothY(smoothingElement + 1);
-        backgroundFlux.smoothY(backgroundSmoothingElement + 1);
+        if (smoothingElement > 1) {
+            Log.fine("Smoothing source; element = " + (smoothingElement + 1));
+            sourceFlux.smoothY(smoothingElement + 1);
+        }
+        if (backgroundSmoothingElement > 1) {
+            Log.fine("Smoothing background; element = " + (backgroundSmoothingElement + 1));
+            backgroundFlux.smoothY(backgroundSmoothingElement + 1);
+        }
 
         if (haloIsUsed) {
             // calc the width of a spectral resolution element in nm
-            final double haloResElement       = disperser.resolution(output_slit, haloImgQuality);
+            final double haloResElement = disperser.resolution(output_slit, haloImgQuality);
             // and the data size in the spectral domain
-            final double haloResElementData  = haloResElement / sourceFlux.getSampling();
+            final double haloResElementData = haloResElement / sourceFlux.getSampling();
             // use the int value of spectral_pix as a smoothing element (at least 1)
-            final int haloSmoothingElement    = (int) Math.max(1.0, Math.round(haloResElementData));
+            final int haloSmoothingElement = (int) Math.max(1.0, Math.round(haloResElementData));
             ///////////////////////////////////////////////////////////////////////////////////////
             //  We Don't know why but using just the smoothing element is not enough to create the resolution
             //     that we expect.  Using a smoothing element of  = smoothingElement + 1
             //     May need to take this out in the future.
             ///////////////////////////////////////////////////////////////////////////////////////
-            haloFlux.smoothY(haloSmoothingElement + 1);
-
+            if (haloSmoothingElement > 1) {
+                Log.fine("Smoothing halo; element = " + (haloSmoothingElement + 1));
+                haloFlux.smoothY(haloSmoothingElement + 1);
+            }
             final SampledSpectrumVisitor haloResample   = new ResampleWithPaddingVisitor(obsStart, obsEnd - 1, pixelWidth, 0);
             haloFlux.accept(haloResample);
         }
 
 
         // resample both sky and SED
+        Log.fine("Resampling input SEDs to match instrument pixel scale = " + pixelWidth + " nm");
         final SampledSpectrumVisitor sourceResample     = new ResampleWithPaddingVisitor(obsStart, obsEnd - 1, pixelWidth, 0);
         final SampledSpectrumVisitor backgroundResample = new ResampleWithPaddingVisitor(obsStart, obsEnd - 1, pixelWidth, 0);
 
@@ -194,7 +203,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
     /** Calculates single and final S2N. */
     private void calculateS2N() {
 
-        double[][] sourceVal = sourceFlux.getData();
+        // double[][] sourceVal = sourceFlux.getData();
         // shot noise on dark current flux in aperture
         final double darkNoise = darkCurrent * output_slit.lengthPixels() * exposureTime;  // per spectral pixel
         Log.fine("Dark noise = " + darkCurrent + " * "  + output_slit.lengthPixels() + " pix long slit * " + exposureTime + " sec = " + darkNoise);
@@ -204,22 +213,23 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         Log.fine("Read noise = " + this.readNoise + "^2 * "  + output_slit.lengthPixels() + " pix long slit = " + readNoise);
 
         // signal and background for given slit and throughput
-        final VisitableSampledSpectrum signal     = haloIsUsed ? signalWithHalo(throughput.throughput(), haloThroughput.throughput()) : signal(throughput.throughput());
+        final VisitableSampledSpectrum signal = haloIsUsed ?
+                signalWithHalo(throughput.throughput(), haloThroughput.throughput()) :
+                signal(throughput.throughput());
         final VisitableSampledSpectrum background = background(input_slit);
-        //SEDFactory.creatingFile(signal.getSampling(),  signal, "signal");
-        //SEDFactory.creatingFile(background.getSampling(),  background, "backgroundS2N");
 
+        //SEDFactory.writeFile(signal, "signal");
+        //SEDFactory.writeFile(background, "background");
 
         // -- calculate and assign s2n results
 
         // S2N for one exposure
         resultS2NSingle = singleS2N(signal, background, darkNoise, readNoise);
-        //SEDFactory.creatingFile(resultS2NSingle.getSampling(),  resultS2NSingle, "resultS2NSingle");
-
+        //SEDFactory.writeFile(resultS2NSingle, "resultS2NSingle");
 
         // final S2N for all exposures
         resultS2NFinal = finalS2N(signal, background, darkNoise, readNoise);
-        //SEDFactory.creatingFile(resultS2NFinal.getSampling(),  resultS2NFinal, "resultS2NFinal");
+        //SEDFactory.writeFile(resultS2NFinal, "resultS2NFinal");
 
         /*
         double[][] data3 = resultS2NSingle.getData();
@@ -241,12 +251,11 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         final VisitableSampledSpectrum signal = haloIsUsed ? signalWithHalo(throughput.onePixelThroughput(), haloThroughput.onePixelThroughput()) : signal(throughput.onePixelThroughput());
         final VisitableSampledSpectrum sqrtBackground = background(new OnePixelSlit(input_slit.width(), input_slit.pixelSize())); // background(slit); REL-508
 
-        // For debugging purposes, use this to plot the TOTAL signal in the aperture:
+        // For debugging purposes, uncomment this to plot the TOTAL signal in the aperture:
         //Log.warning("Calculating the TOTAL signal and background in the aperture.");
         //final VisitableSampledSpectrum signal = haloIsUsed ? signalWithHalo(throughput.throughput(), haloThroughput.throughput()) : signal(throughput.throughput());
-        //final VisitableSampledSpectrum sqrtBackground = background(slit);
+        //final VisitableSampledSpectrum sqrtBackground = background(input_slit);
 
-        //SEDFactory.creatingFile(sqrtBackground.getSampling(),  sqrtBackground, "sqrtBackground");
         // create the Sqrt(Background) sed for plotting
         for (int i = firstCcdPixel; i <= lastCcdPixel(sqrtBackground.getLength()); ++i)
             sqrtBackground.setY(i, Math.sqrt(sqrtBackground.getY(i)));
@@ -261,17 +270,16 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
 
         final VisitableSampledSpectrum signal = (VisitableSampledSpectrum) sourceFlux.clone();
         final int lastPixel = lastCcdPixel(signal.getLength());
-        Log.fine("Calculating signal with " + throughput + " throughput on detector pixels " + firstCcdPixel + " - " + lastPixel);
+        Log.fine(String.format("Calculating signal/pixel: throughput = %.3f on detector pixels %d - %d",
+                throughput, firstCcdPixel, lastCcdPixel));
 
-
-        Log.fine("Disperser is: "+ disperser.dispersion((signal.getStart() + signal.getEnd())/2 ));
         for (int i = 0; i < signal.getLength(); ++i) { signal.setY(i, 0); } // zero data array before use per REL-2992
 
-        // ANDY - what is going on here?  (the final sourceFlux.getX(i) is new
         for (int i = firstCcdPixel; i <= lastPixel; ++i) {
             signal.setY(i, totalFlux(sourceFlux.getY(i), throughput, sourceFlux.getX(i)));
         }
 
+        //SEDFactory.writeFile(signal, "signal");
         return signal;
     }
 
@@ -284,7 +292,6 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
 
         for (int i = 0; i < signal.getLength(); ++i) { signal.setY(i, 0); }
 
-        // ANDY - what is going on here?  totalFlux changed from a 1D to a 2D array.
         for (int i = firstCcdPixel; i <= lastPixel; ++i) {
             //System.out.println("signalWithHalo X: "+ sourceFlux.getX(i) + " Y: "+ sourceFlux.getY(i) + " i: "+ i);
             signal.setY(i, totalFlux(sourceFlux.getY(i), throughput, sourceFlux.getX(i)) + totalFlux(haloFlux.getY(i), haloThroughput, haloFlux.getX(i)));
@@ -300,8 +307,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         final VisitableSampledSpectrum background = (VisitableSampledSpectrum) backgroundFlux.clone();
         final int lastPixel = lastCcdPixel(background.getLength());
 
-        Log.fine("Calculating background in " + exposureTime + " sec with dispersion " + disperser.dispersion() +
-                " in a " + slit.widthPixels() + " x " + slit.lengthPixels() + " pix slit on pixels " + firstCcdPixel + " - " + lastPixel);
+        Log.fine("Calculating background in " + exposureTime + " sec in a " + slit.widthPixels() + " x " + slit.lengthPixels() + " pix slit on pixels " + firstCcdPixel + " - " + lastPixel);
 
         for (int i = 0; i < background.getLength(); ++i) { background.setY(i, 0); }
 
@@ -315,6 +321,8 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
                             exposureTime * disperser.dispersion(backgroundFlux.getX(i)));  // Use the grating dispersion. The data is gotten from grating file for each instrument.
                             //exposureTime * disp);  // Use the grating dispersion. The data is gotten from grating file for each instrument.
         }
+
+        //SEDFactory.writeFile(background, "background");
 
         return background;
     }
@@ -375,6 +383,7 @@ public class SpecS2NSlitVisitor implements SampledSpectrumVisitor, SpecS2N {
         return finalS2N;
     }
 
+    // Calculate the flux per pixel given the input flux, the slit throughput, and the dispersion:
     private double totalFlux(final double flux, final double throughput, final double wv) {
         //double disp = disperser.dispersion(wv);
         //System.out.println("disp: " + disp);

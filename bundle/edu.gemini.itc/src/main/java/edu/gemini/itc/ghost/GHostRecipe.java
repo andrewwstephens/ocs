@@ -93,6 +93,7 @@ public final class GHostRecipe  {
     }
 
     private SpectroscopyResult calculateSpectroscopy(Ghost instrument, int length) {
+        Log.fine("Calculating...");
 
         // In this first step is defined a source energy function (as function of wavelength).
         // The source can be BlackBodySpectrum, EmissionLineSpectrum, PowerLawSpectrum, UserDefinedSpectrum, a source from
@@ -106,8 +107,8 @@ public final class GHostRecipe  {
         morph.accept(instrument.getIFU().getAperture());
 
         final List<Double> sf_list = instrument.getIFU().getFractionOfSourceInAperture();
-        double totalspsf = 0;  // total source fraction in the aperture
-        double numfibers = 0;  // number of fibers being summed
+        double totalspsf = 0.0;  // total source fraction in the aperture
+        int numfibers = 0;       // number of fibers being summed
         for (Double aSf_list : sf_list) {
             final double spsf = aSf_list;
             totalspsf += spsf;
@@ -123,10 +124,10 @@ public final class GHostRecipe  {
         List<ApertureComponent> list = IFUApertures.getApertureList();
         for( ApertureComponent ac : list) {
             HexagonalAperture h = (HexagonalAperture) ac;
-            Log.info("x: "+ h.getIfuPosX() + " y: "+ h.getIfuPosY() + " fractionSource: "+  h.getFractionOfSourceInAperture());
+            Log.fine(String.format("x = %5.2f  y = %5.2f  fractionSource = %s", h.getIfuPosX(), h.getIfuPosY(), h.getFractionOfSourceInAperture()));
         }
-        Log.info("slitLength: "+ instrument.getSlitLength() + " throughtput: "+ totalspsf +
-                           " onePIx: " + sf_list.get((sf_list.size() - 1) / 2) + " numfibers: "+ numfibers + " centerFiber: "+ (sf_list.size() - 1) / 2);
+        Log.fine(String.format("slitLength = %.2f, throughput = %.5f, onePix = %.5f, numfibers = %d, centerFiber = %d",
+           instrument.getSlitLength(), totalspsf, sf_list.get((sf_list.size() - 1) / 2), numfibers, (sf_list.size() - 1) / 2));
 
          final SpecS2NSlitVisitor specS2N = new SpecS2NSlitVisitor(
                 slit,
