@@ -32,10 +32,6 @@ public final class GnirsRecipe implements ImagingRecipe, SpectroscopyRecipe {
     private final GnirsParameters _gnirsParameters;
     private final TelescopeDetails _telescope;
 
-    private final VisitableSampledSpectrum[] signalOrder;
-    private final VisitableSampledSpectrum[] backGroundOrder;
-    private final VisitableSampledSpectrum[] finalS2NOrder;
-
     /**
      * Constructs a GnirsRecipe given the parameters. Useful for testing.
      */
@@ -49,11 +45,6 @@ public final class GnirsRecipe implements ImagingRecipe, SpectroscopyRecipe {
         _obsConditionParameters = p.conditions();
         _gnirsParameters        = instr;
         _telescope              = p.telescope();
-
-        signalOrder = new VisitableSampledSpectrum[ORDERS];
-        backGroundOrder = new VisitableSampledSpectrum[ORDERS];
-        finalS2NOrder = new VisitableSampledSpectrum[ORDERS];
-
         validateInputParameters();
     }
 
@@ -105,34 +96,35 @@ public final class GnirsRecipe implements ImagingRecipe, SpectroscopyRecipe {
         // calculates: redshifted SED
         // output: redshifted SED
 
-        // Calculate image quality
-        final ImageQualityCalculatable IQcalc = ImageQualityCalculationFactory.getCalculationInstance(_sdParameters, _obsConditionParameters, _telescope, instrument);
-        IQcalc.calculate();
-
-        // Altair specific section
-        final Option<AOSystem> altair;
-        if (_gnirsParameters.altair().isDefined()) {
-            final Altair ao = new Altair(instrument.getEffectiveWavelength(), _telescope.getTelescopeDiameter(), IQcalc.getImageQuality(), _obsConditionParameters.ccExtinction(), _gnirsParameters.altair().get(), 0.1);
-            altair = Option.apply(ao);
-        } else {
-            altair = Option.empty();
-        }
-
-        // Get the summed source and sky
-        final SEDFactory.SourceResult calcSource = SEDFactory.calculate(instrument, _sdParameters, _obsConditionParameters, _telescope, altair);
-        final VisitableSampledSpectrum sed = calcSource.sed;
-        final VisitableSampledSpectrum sky = calcSource.sky;
-        final Option<VisitableSampledSpectrum> halo = calcSource.halo;
-
-        // In this version we are bypassing morphology modules 3a-5a.
-        // i.e. the output morphology is same as the input morphology.
-        // Might implement these modules at a later time.
-        final double im_qual = altair.isDefined() ? altair.get().getAOCorrectedFWHM() : IQcalc.getImageQuality();
-
-        // TODO: why, oh why?
-        final double im_qual1 = _sdParameters.isUniform() ? 10000 : im_qual;
-
         if (instrument.isIfuUsed()) {  // === IFU ===
+            Log.fine("Starting IFU calculations...");
+
+            // Calculate image quality
+            final ImageQualityCalculatable IQcalc = ImageQualityCalculationFactory.getCalculationInstance(_sdParameters, _obsConditionParameters, _telescope, instrument);
+            IQcalc.calculate();
+
+            // Altair specific section
+            Option<AOSystem> altair;
+            if (_gnirsParameters.altair().isDefined()) {
+                Altair ao = new Altair(instrument.getEffectiveWavelength(), _telescope.getTelescopeDiameter(), IQcalc.getImageQuality(), _obsConditionParameters.ccExtinction(), _gnirsParameters.altair().get(), 0.1);
+                altair = Option.apply(ao);
+            } else {
+                altair = Option.empty();
+            }
+
+            // Get the summed source and sky
+            final SEDFactory.SourceResult calcSource = SEDFactory.calculate(instrument, _sdParameters, _obsConditionParameters, _telescope, altair);
+            final VisitableSampledSpectrum sed = calcSource.sed;
+            final VisitableSampledSpectrum sky = calcSource.sky;
+            final Option<VisitableSampledSpectrum> halo = calcSource.halo;
+
+            // In this version we are bypassing morphology modules 3a-5a.
+            // i.e. the output morphology is same as the input morphology.
+            // Might implement these modules at a later time.
+            double im_qual = altair.isDefined() ? altair.get().getAOCorrectedFWHM() : IQcalc.getImageQuality();
+            double im_qual1 = _sdParameters.isUniform() ? 10000 : im_qual;
+            Log.fine(String.format("imqual1 = %.3f arcsec", im_qual1));
+
             // Module 1a
             // The purpose of this section is to calculate the fraction of the
             // source flux which is contained within an aperture which we adopt
@@ -142,7 +134,14 @@ public final class GnirsRecipe implements ImagingRecipe, SpectroscopyRecipe {
             //
             // inputs: source morphology specification
 
-            sed.accept(instrument.getGratingOrderNTransmission(instrument.getOrder()));
+            final TransmissionElement gratingTransmission = instrument.getGratingOrderNTransmission(instrument.getOrder());
+            sed.accept(gratingTransmission);
+            sky.accept(gratingTransmission);
+
+            VisitableSampledSpectrum aoHalo = halo.get();
+            if (altair.isDefined()) {
+                aoHalo.accept(gratingTransmission);
+            }
 
             // Morphology section
             final VisitableMorphology morph, haloMorphology;
@@ -230,7 +229,7 @@ public final class GnirsRecipe implements ImagingRecipe, SpectroscopyRecipe {
                 specS2N.setSourceSpectrum(sed);
                 specS2N.setBackgroundSpectrum(sky);
                 if (altair.isDefined()) {
-                    specS2N.setHaloSpectrum(halo.get(), new SlitThroughput(haloThroughput, haloThroughput), IQcalc.getImageQuality());
+                    specS2N.setHaloSpectrum(aoHalo, new SlitThroughput(haloThroughput, haloThroughput), IQcalc.getImageQuality());
                 }
                 sed.accept(specS2N);
                 specS2Narr[i++] = specS2N;
@@ -238,142 +237,127 @@ public final class GnirsRecipe implements ImagingRecipe, SpectroscopyRecipe {
 
             return new SpectroscopyResult(p, instrument, IQcalc, specS2Narr, null, 0, altair, Option.empty(), AllIntegrationTimes.empty());
 
-        } else {  // === SLIT ===
+        } else {  // === LONG-SLIT and CROSS-DISPERSED
 
-            final Slit slit = Slit$.MODULE$.apply(_sdParameters, _obsDetailParameters, instrument, instrument.getSlitWidth(), im_qual);
-            final SlitThroughput throughput = new SlitThroughput(_sdParameters, slit, im_qual);
-            final Option<SlitThroughput> haloThroughput = altair.isDefined()
-                    ? Option.<SlitThroughput>apply(new SlitThroughput(_sdParameters, slit, IQcalc.getImageQuality()))
-                    : Option.<SlitThroughput>empty();
+            Log.fine("Starting slit calculations...");
+            ImageQualityCalculatable IQcalc = null;
+            Slit slit = null;
+            SlitThroughput throughput = null;
+            Option<AOSystem> altair = null;
 
-            final SpecS2NSlitVisitor specS2N = new SpecS2NSlitVisitor(
-                    slit,
-                    instrument.disperser(instrument.getOrder()),
-                    throughput,
-                    instrument.getSpectralPixelWidth() / instrument.getOrder(),
-                    instrument.getObservingStart(),
-                    instrument.getObservingEnd(),
-                    im_qual1,
-                    instrument.getReadNoise(),
-                    instrument.getDarkCurrent(),
-                    _obsDetailParameters);
+            // Find the order corresponding to the user-supplied central wavelength
+            final double centralWavelength = _gnirsParameters.centralWavelength().toNanometers();
+            GNIRSParams.Order centerOrder = GNIRSParams.Order.getOrder(centralWavelength / 1000., null);
+            if (centerOrder == null) {
+                throw new IllegalArgumentException("The order for this wavelength cannot be found");
+            }
+            final double mLambda = centerOrder.getOrder() * centralWavelength;  // nanometers
 
-            if (instrument.XDisp_IsUsed()) {
-                final VisitableSampledSpectrum[] sedOrder = new VisitableSampledSpectrum[ORDERS];
-                final VisitableSampledSpectrum[] haloOrder = new VisitableSampledSpectrum[ORDERS];
-                final VisitableSampledSpectrum[] skyOrder = new VisitableSampledSpectrum[ORDERS];
+            final GNIRSParams.PixelScale pixelScale = instrument.getPixelScale();
+            final GNIRSParams.Disperser disperser = instrument.getGrating();
 
-                /**
-                 * The orders here are calculated now the same way it's done for the OT in InstGNIRS.java.
-                 * I couldn't reuse the calculation methods from there, since they are coupled to the OT interface.
-                 * Still order calculations probably should be generalized.
-                 */
-                final double centralWavelength = _gnirsParameters.centralWavelength().toMicrons();
+            int numberOrders = instrument.XDisp_IsUsed() ? ORDERS : 1;
+            SpecS2N[] specS2Narr = new SpecS2N[numberOrders];
 
-                final double[] centralWavelengthArray = new double[GNIRSParams.Order.NUM_ORDERS];
-                {
-                    GNIRSParams.Order o = GNIRSParams.Order.getOrder(centralWavelength, null);
-                    if (o == null)
-                        throw new IllegalArgumentException("The order for this wavelength cannot be found");
+            for (int i = 0; i < numberOrders; i++) {
 
-                    double d = o.getOrder() * centralWavelength;
-                    for (int i = 1; i <= GNIRSParams.Order.NUM_ORDERS; i++) {
-                        centralWavelengthArray[i - 1] = d / i;
-                    }
+                final int order = instrument.XDisp_IsUsed() ? i + 3 : instrument.getOrder();
+                GNIRSParams.Order Order = GNIRSParams.Order.getOrderByNumber(order);
+                Log.fine("Order = " + Order.displayValue() + " -----------------------------------------");
+
+                final double wavelength = mLambda / order;
+                final double startWavelength = Order.getStartWavelength(wavelength / 1000., disperser, pixelScale) * 1000.;
+                final double endWavelength = Order.getEndWavelength(wavelength / 1000., disperser, pixelScale) * 1000.;
+                Log.fine(String.format("Wavelength = %.1f (%.1f - %.1f) nm", wavelength, startWavelength, endWavelength));
+
+                // Calculate image quality
+                IQcalc = ImageQualityCalculationFactory.getCalculationInstance(_sdParameters, _obsConditionParameters, _telescope, (int) wavelength);
+                IQcalc.calculate();
+
+                // Altair specific section
+                double strehl;
+                if (_gnirsParameters.altair().isDefined()) {
+                    Altair ao = new Altair(wavelength, _telescope.getTelescopeDiameter(), IQcalc.getImageQuality(), _obsConditionParameters.ccExtinction(), _gnirsParameters.altair().get(), 0.1);
+                    altair = Option.apply(ao);
+                    strehl = ao.getStrehl();
+                } else {
+                    altair = Option.empty();
+                    strehl = Double.NaN;
                 }
 
-                final GNIRSParams.PixelScale pixelScale = instrument.getPixelScale();
-                final GNIRSParams.Disperser disperser = instrument.getGrating();
+                // Get the summed source and sky
+                final SEDFactory.SourceResult calcSource = SEDFactory.calculate(instrument, _sdParameters, _obsConditionParameters, _telescope, altair);
+                final VisitableSampledSpectrum sed = calcSource.sed;
+                final VisitableSampledSpectrum sky = calcSource.sky;
+                final Option<VisitableSampledSpectrum> halo = calcSource.halo;
 
-                final int n = GNIRSParams.Order.values().length;
+                // In this version we are bypassing morphology modules 3a-5a.
+                // i.e. the output morphology is same as the input morphology.
+                // Might implement these modules at a later time.
+                double im_qual = altair.isDefined() ? altair.get().getAOCorrectedFWHM() : IQcalc.getImageQuality();
+                double im_qual1 = _sdParameters.isUniform() ? 10000 : im_qual;
+                Log.fine(String.format("Image quality = %.3f arcsec", im_qual));
 
-                for (int j = 0; j < n; j++) {
-                    GNIRSParams.Order o = GNIRSParams.Order.getOrderByIndex(j);
+                slit = Slit$.MODULE$.apply(_sdParameters, _obsDetailParameters, instrument, instrument.getSlitWidth(), im_qual);
+                Log.fine(String.format("Slit = %.3f x %.3f arcsec", slit.width(), slit.length()));
 
-                    if (o == GNIRSParams.Order.ONE || o == GNIRSParams.Order.TWO || o == GNIRSParams.Order.XD) {
-                        continue; // skip orders 1, 2, and XD
-                    }
-                    final int order = o.getOrder(); // order number
-                    final int i = order - 3;
+                throughput = new SlitThroughput(_sdParameters, slit, im_qual);
+                Log.fine(String.format("Throughput = %.5f for order %d", throughput.throughput(), instrument.getOrder()));
 
-                    final double wavelength = centralWavelengthArray[order - 1];
-                    final double trimStart = o.getStartWavelength(wavelength, disperser, pixelScale) * 1000; // in nm
-                    final double trimEnd = o.getEndWavelength(wavelength, disperser, pixelScale) * 1000;
+                final Option<SlitThroughput> haloThroughput = altair.isDefined()
+                        ? Option.apply(new SlitThroughput(_sdParameters, slit, IQcalc.getImageQuality()))
+                        : Option.empty();
 
-                    sedOrder[i] = (VisitableSampledSpectrum) sed.clone();
-                    sedOrder[i].accept(instrument.getGratingOrderNTransmission(order));
-                    sedOrder[i].trim(trimStart, trimEnd);
+                final SpecS2NSlitVisitor specS2N = new SpecS2NSlitVisitor(
+                        slit,
+                        instrument.disperser(order),
+                        throughput,
+                        instrument.getSpectralPixelWidth() / order,
+                        startWavelength,
+                        endWavelength,
+                        im_qual1,
+                        instrument.getReadNoise(),
+                        instrument.getDarkCurrent(),
+                        _obsDetailParameters);
 
-                    if (halo.nonEmpty()) {
-                        haloOrder[i] = (VisitableSampledSpectrum) halo.get().clone();
-                        haloOrder[i].accept(instrument.getGratingOrderNTransmission(order));
-                        haloOrder[i].trim(trimStart, trimEnd);
-                        specS2N.setHaloSpectrum(haloOrder[i], haloThroughput.get(), IQcalc.getImageQuality());
-                    }
-
-                    skyOrder[i] = (VisitableSampledSpectrum) sky.clone();
-                    skyOrder[i].accept(instrument.getGratingOrderNTransmission(order));
-                    skyOrder[i].trim(trimStart, trimEnd);
-
-                    specS2N.setSourceSpectrum(sedOrder[i]);
-                    specS2N.setBackgroundSpectrum(skyOrder[i]);
-
-                    specS2N.setDisperser(instrument.disperser(order));
-                    specS2N.setSpectralPixelWidth(instrument.getSpectralPixelWidth() / order);
-
-                    specS2N.setStartWavelength(sedOrder[i].getStart());
-                    specS2N.setEndWavelength(sedOrder[i].getEnd());
-
-                    sed.accept(specS2N);
-
-                    signalOrder[i] = (VisitableSampledSpectrum) specS2N.getSignalSpectrum().clone();
-                    backGroundOrder[i] = (VisitableSampledSpectrum) specS2N.getBackgroundSpectrum().clone();
-                }
-
-                for (int i = 0; i < ORDERS; i++) {
-                    final int order = i + 3;
-                    specS2N.setSourceSpectrum(sedOrder[i]);
-                    specS2N.setBackgroundSpectrum(skyOrder[i]);
-                    if (haloThroughput.nonEmpty()) {
-                        specS2N.setHaloSpectrum(haloOrder[i], haloThroughput.get(), IQcalc.getImageQuality());
-                    }
-
-                    specS2N.setDisperser(instrument.disperser(order));
-                    specS2N.setSpectralPixelWidth(instrument.getSpectralPixelWidth() / order);
-
-                    specS2N.setStartWavelength(sedOrder[i].getStart());
-                    specS2N.setEndWavelength(sedOrder[i].getEnd());
-
-                    sed.accept(specS2N);
-
-                    finalS2NOrder[i] = (VisitableSampledSpectrum) specS2N.getFinalS2NSpectrum().clone();
-                }
-
-                final SpecS2N[] specS2Narr = new SpecS2N[ORDERS];
-                for (int i = 0; i < ORDERS; i++) {
-                    final SpecS2N s2n = new GnirsSpecS2N(signalOrder[i], backGroundOrder[i], null, finalS2NOrder[i]);
-                    specS2Narr[i] = s2n;
-                }
-
-                return new SpectroscopyResult(p, instrument, IQcalc, specS2Narr, slit, throughput.throughput(), altair, Option.empty(), AllIntegrationTimes.empty());
-
-            } else {  // === NOT XD ===
-
-                sed.accept(instrument.getGratingOrderNTransmission(instrument.getOrder()));
-
+                final TransmissionElement gratingTransmission = instrument.getGratingOrderNTransmission(order);
+                sed.accept(gratingTransmission);
                 specS2N.setSourceSpectrum(sed);
+                sky.accept(gratingTransmission);
                 specS2N.setBackgroundSpectrum(sky);
+
                 if (altair.isDefined() && halo.isDefined() && haloThroughput.isDefined()) {
-                    specS2N.setHaloSpectrum(halo.get(), haloThroughput.get(), IQcalc.getImageQuality());
+                    Log.fine(String.format("Adding AO halo with FWHM = %.2f arcsec and throughput = %.3f",
+                            IQcalc.getImageQuality(), haloThroughput.get().throughput()));
+                    final VisitableSampledSpectrum aoHalo = halo.get();
+                    aoHalo.accept(gratingTransmission);
+                    specS2N.setHaloSpectrum(aoHalo, haloThroughput.get(), IQcalc.getImageQuality());
                 }
+
                 sed.accept(specS2N);
 
-                final SpecS2N[] specS2Narr = new SpecS2N[]{specS2N};
+                if (instrument.XDisp_IsUsed()) {
+                    // Extract signal, background, and S/N and create the GnirsSpecS2N object:
+                    final VisitableSampledSpectrum signal = (VisitableSampledSpectrum) specS2N.getSignalSpectrum();
+                    Log.fine(String.format("Signal = %.1f @ %.1f nm", signal.getY(wavelength), wavelength));
+                    final VisitableSampledSpectrum background = (VisitableSampledSpectrum) specS2N.getBackgroundSpectrum();
+                    final VisitableSampledSpectrum finalS2N = (VisitableSampledSpectrum) specS2N.getFinalS2NSpectrum();
+                    final SpecS2N s2n = new GnirsSpecS2N(order, wavelength, im_qual,
+                            IQcalc.getImageQuality(), strehl, slit.length(), throughput.throughput(),
+                            signal, background, null, finalS2N);
+                    specS2Narr[i] = s2n;
+                } else {
+                    specS2Narr[i] = specS2N;
+                }
+
+            }
+            if (instrument.XDisp_IsUsed()) {
+                IQcalc = ImageQualityCalculationFactory.getCalculationInstance(_sdParameters, _obsConditionParameters, _telescope, 1650);
+                return new SpectroscopyResult(p, instrument, IQcalc, specS2Narr, null, Double.NaN, altair, Option.empty(), AllIntegrationTimes.empty());
+            } else {
                 return new SpectroscopyResult(p, instrument, IQcalc, specS2Narr, slit, throughput.throughput(), altair, Option.empty(), AllIntegrationTimes.empty());
             }
-
         }
-
     }
 
     // === CHARTS ===
@@ -428,23 +412,43 @@ public final class GnirsRecipe implements ImagingRecipe, SpectroscopyRecipe {
     }
 
 
-    // SpecS2N implementation to hold results for GNIRS cross dispersion mode calculations.
-    class GnirsSpecS2N implements SpecS2N {
-
+    // SpecS2N implementation to hold results for GNIRS cross dispersed mode calculations.
+    public static class GnirsSpecS2N implements SpecS2N {
+        private final int order;
+        private final double wavelength;
+        private final double imageQuality;
+        private final double aoHaloImageQuality;
+        private final double strehl;
+        private final double aperture;
+        private final double throughput;
         private final VisitableSampledSpectrum signal;
         private final VisitableSampledSpectrum background;
         private final VisitableSampledSpectrum exps2n;
         private final VisitableSampledSpectrum fins2n;
 
         public GnirsSpecS2N(
+                final int order,
+                final double wavelength,
+                final double imageQuality,
+                final double aoHaloImageQuality,
+                final double strehl,
+                final double aperture,
+                final double throughput,
                 final VisitableSampledSpectrum signal,
                 final VisitableSampledSpectrum background,
                 final VisitableSampledSpectrum exps2n,
                 final VisitableSampledSpectrum fins2n) {
-            this.signal       = signal;
-            this.background   = background;
-            this.exps2n       = exps2n;
-            this.fins2n       = fins2n;
+            this.order              = order;
+            this.wavelength         = wavelength;
+            this.imageQuality       = imageQuality;
+            this.aoHaloImageQuality = aoHaloImageQuality;
+            this.strehl             = strehl;
+            this.aperture           = aperture;
+            this.throughput         = throughput;
+            this.signal             = signal;
+            this.background         = background;
+            this.exps2n             = exps2n;
+            this.fins2n             = fins2n;
         }
 
         @Override public VisitableSampledSpectrum getSignalSpectrum() {
@@ -463,23 +467,36 @@ public final class GnirsRecipe implements ImagingRecipe, SpectroscopyRecipe {
             return fins2n;
         }
 
+        public int getOrder() { return order; }
+
+        public double getImageQuality() { return imageQuality; }
+
+        public double getAoHaloImageQuality() { return aoHaloImageQuality; }
+
+        public double getStrehl() { return strehl; }
+
+        public double getAperture() { return aperture; }
+
+        public double getThroughput() { return throughput; }
+
+        public double getWavelength() { return wavelength; }
 
         // These methods are required to comply with the SpecS2N interface, but they don't do anything:
 
         @Override public VisitableSampledSpectrum getTotalBackgroundSpectrum() {
-            throw new java.lang.UnsupportedOperationException();
+            throw new UnsupportedOperationException();
         }
 
         @Override public VisitableSampledSpectrum getTotalSignalSpectrum() {
-            throw new java.lang.UnsupportedOperationException();
+            throw new UnsupportedOperationException();
         }
 
         @Override public double getTotalDarkNoise() {
-            throw new java.lang.UnsupportedOperationException();
+            throw new UnsupportedOperationException();
         }
 
         @Override public int getSlitLengthPixels() {
-            throw new java.lang.UnsupportedOperationException();
+            throw new UnsupportedOperationException();
         }
 
     }
